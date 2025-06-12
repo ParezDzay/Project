@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
 def groundwater_trends_page():
-    output_path = r"C:\Parez\GW data (missing filled).csv"
+    output_path = GW data (missing filled).csv"
 
     st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK)")
 
