@@ -11,6 +11,12 @@ def well_map_viewer_page(df: pd.DataFrame):
 
     tab1, tab2 = st.tabs(["📊 Data Table", "🗺️ Map View"])
 
+    # Ensure required columns are present
+    required_cols = {"lat", "lon", "Depth (m)"}
+    if not required_cols.issubset(df.columns):
+        st.error(f"Missing required columns: {required_cols - set(df.columns)}")
+        return
+
     # Prepare data
     filtered_df = df.copy().reset_index(drop=True)
     filtered_df["Well Label"] = ["W" + str(i + 1) for i in range(len(filtered_df))]
@@ -44,8 +50,7 @@ def well_map_viewer_page(df: pd.DataFrame):
         # Plot
         fig, ax = plt.subplots(figsize=(10, 8))
         contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=15, alpha=0.8)
-
-        scatter = ax.scatter(filtered_df["x"], filtered_df["y"], c='red', edgecolor='black', s=80, zorder=3)
+        ax.scatter(filtered_df["x"], filtered_df["y"], c='red', edgecolor='black', s=80, zorder=3)
 
         for _, row in filtered_df.iterrows():
             ax.text(row["x"], row["y"] + 100, f"{row['Well Label']}\n{row['Depth (m)']} m",
@@ -54,7 +59,7 @@ def well_map_viewer_page(df: pd.DataFrame):
 
         ctx.add_basemap(ax, crs="epsg:3857", source=ctx.providers.Esri.WorldImagery)
 
-        cbar = plt.colorbar(contour, ax=ax, label="Well Depth (m)", shrink=0.8)
+        cbar = fig.colorbar(contour, ax=ax, label="Well Depth (m)", shrink=0.8)
         ax.set_title("Well Depth Contour and Well Locations", fontsize=14)
         ax.set_xticks([])
         ax.set_yticks([])
