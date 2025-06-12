@@ -11,7 +11,6 @@ from sklearn.metrics import r2_score, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
 
 def groundwater_prediction_page():
-    st.set_page_config(page_title="Well Data App", layout="wide")
     st.title("Groundwater Forecasting — Depth View")
 
     DATA_PATH = "GW data (missing filled).csv"
