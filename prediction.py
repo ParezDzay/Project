@@ -1,20 +1,23 @@
+# prediction.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-from pathlib import Path
-from datetime import datetime
+from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
+from pathlib import Path
+from datetime import datetime
+import plotly.express as px
+
 
 def groundwater_prediction_page():
-    st.title("Groundwater Forecasting — Depth View")
+    st.title("📊 Groundwater Forecasting")
 
     DATA_PATH = "GW data (missing filled).csv"
-    HORIZON_M = 60  # 5-year forecast (monthly steps)
+    HORIZON_M = 60
 
     @st.cache_data(show_spinner=False)
     def load_raw(path):
@@ -58,12 +61,10 @@ def groundwater_prediction_page():
         df_feat.loc[Xtr.index, "pred"] = ytr_pred
         df_feat.loc[Xte.index, "pred"] = yte_pred
 
-        metrics = {
-            "R² train": round(r2_score(ytr, ytr_pred), 4),
-            "RMSE train": round(np.sqrt(mean_squared_error(ytr, ytr_pred)), 4),
-            "R² test": round(r2_score(yte, yte_pred), 4),
-            "RMSE test": round(np.sqrt(mean_squared_error(yte, yte_pred)), 4)
-        }
+        metrics = {"R² train": round(r2_score(ytr, ytr_pred), 4),
+                   "RMSE train": round(np.sqrt(mean_squared_error(ytr, ytr_pred)), 4),
+                   "R² test": round(r2_score(yte, yte_pred), 4),
+                   "RMSE test": round(np.sqrt(mean_squared_error(yte, yte_pred)), 4)}
 
         feats = scaler.feature_names_in_
         r = df_feat.tail(1).iloc[0].copy()
@@ -73,57 +74,26 @@ def groundwater_prediction_page():
                 r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
             r[f"{well}_lag1"] = r["pred"]
             nxt = r["Date"] + pd.DateOffset(months=1)
-            r.update({
-                "Date": nxt, "Months": nxt.month,
-                "month_sin": np.sin(2 * np.pi * nxt.month / 12),
-                "month_cos": np.cos(2 * np.pi * nxt.month / 12)
-            })
+            r.update({"Date": nxt, "Months": nxt.month,
+                      "month_sin": np.sin(2 * np.pi * nxt.month / 12),
+                      "month_cos": np.cos(2 * np.pi * nxt.month / 12)})
             val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
             r[well] = r["pred"] = val
             fut.append({"Date": nxt, "Depth": val})
-
         return metrics, df_feat, pd.DataFrame(fut)
-
-    def train_arima(series, seasonal, lo, hi):
-        split = int(len(series) * 0.8)
-        train, test = series.iloc[:split], series.iloc[split:]
-        res = ARIMA(train, order=(1, 1, 1),
-                    seasonal_order=(1, 1, 1, 12) if seasonal else (0, 0, 0, 0)).fit()
-        rmse = round(np.sqrt(mean_squared_error(test, res.forecast(len(test)))), 4)
-        res_full = ARIMA(series, order=(1, 1, 1),
-                         seasonal_order=(1, 1, 1, 12) if seasonal else (0, 0, 0, 0)).fit()
-        fc = res_full.get_forecast(HORIZON_M)
-        future = pd.DataFrame({
-            "Date": pd.date_range(series.index[-1] + pd.DateOffset(months=1),
-                                  periods=HORIZON_M, freq="MS"),
-            "Depth": np.clip(fc.predicted_mean.values, lo, hi)
-        })
-        metrics = {
-            "AIC": round(res_full.aic, 1),
-            "BIC": round(res_full.bic, 1),
-            "RMSE test": rmse
-        }
-        return metrics, res_full, future
-
-    if "summary_rows" not in st.session_state:
-        st.session_state["summary_rows"] = []
 
     raw = load_raw(DATA_PATH)
     if raw is None:
         st.error("CSV not found. Upload to continue.")
-        if up := st.file_uploader("Upload CSV", type="csv"):
-            Path(DATA_PATH).write_bytes(up.getvalue())
-            st.experimental_rerun()
-        st.stop()
+        return
 
     wells = [c for c in raw.columns if c.startswith("W")]
-    well = st.sidebar.selectbox("Well", wells)
-    model = st.sidebar.radio("Model", ["🔮 ANN", "📈 ARIMA"])
-
-    clean = clean_series(raw, well)
-    lo, hi = clip_bounds(clean[well])
+    model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA"], horizontal=True)
 
     if model == "🔮 ANN":
+        well = st.sidebar.selectbox("Well", wells)
+        clean = clean_series(raw, well)
+        lo, hi = clip_bounds(clean[well])
         lags = st.sidebar.slider("Lag steps", 1, 24, 12)
         if len(clean) < lags * 10:
             lags = max(1, len(clean) // 10)
@@ -133,65 +103,76 @@ def groundwater_prediction_page():
         feat = add_lags(clean, well, lags)
         metrics, hist, future = train_ann(feat, well, layers, lags, scaler_choice, lo, hi)
         meta = {"lags": lags, "layers": ",".join(map(str, layers))}
-    else:
-        seasonal = st.sidebar.checkbox("Include 12-month seasonality", True)
-        series = pd.Series(clean[well].values, index=clean["Date"])
-        metrics, res, future = train_arima(series, seasonal, lo, hi)
-        meta = {"lags": "", "layers": ""}
 
-    st.subheader(f"{model.strip()} metrics")
-    st.json(metrics)
+        st.subheader("🔍 ANN Model Metrics")
+        st.json(metrics)
 
-    # Plot
-    df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
-    df_fit = (hist[["Date", "pred"]].rename(columns={"pred": "Depth"})
-              if model == "🔮 ANN"
-              else pd.DataFrame({"Date": series.index,
-                                 "Depth": res.fittedvalues.clip(lo, hi),
-                                 "Type": "Predicted"}))
-    df_for = future.assign(Type="Forecast")
+        df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
+        df_fit = hist[["Date", "pred"]].rename(columns={"pred": "Depth"}).assign(Type="Predicted")
+        df_for = future.assign(Type="Forecast")
+        plot_df = pd.concat([df_act, df_fit, df_for])
 
-    plot_df = pd.concat([df_act.assign(Type="Actual"),
-                         df_fit.assign(Type="Predicted"),
-                         df_for])
+        fig = px.line(plot_df, x="Date", y="Depth", color="Type",
+                      labels={"Depth": "Water-table depth (m)"},
+                      title=f"{well} — ANN fit & 5-year forecast")
+        fig.update_yaxes(autorange="reversed")
+        for t in fig.data:
+            if t.name == "Forecast":
+                t.update(line=dict(dash="dash"))
+        fig.add_vline(x=df_act["Date"].max(), line_dash="dot", line_color="gray")
+        st.plotly_chart(fig, use_container_width=True)
 
-    fig = px.line(plot_df, x="Date", y="Depth", color="Type",
-                  labels={"Depth": "Water-table depth (m)"},
-                  title=f"{well} — {model.strip()} fit & 5-year forecast")
-    fig.update_yaxes(autorange="reversed")
-    for t in fig.data:
-        if t.name == "Forecast":
-            t.update(line=dict(dash="dash"))
-    fig.add_vline(x=df_act["Date"].max(), line_dash="dot", line_color="gray")
-    st.plotly_chart(fig, use_container_width=True)
+        st.subheader("🗒️ 5-Year Forecast Table")
+        st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
 
-    # Table
-    st.subheader("🗒️ 5-Year Forecast Table")
-    st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
+    elif model == "📈 ARIMA":
+        st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
 
-    # Save summary
-    if st.button("💾 Save this forecast"):
-        row = {"Well": well}
-        yr_depth = (df_for.assign(Y=df_for["Date"].dt.year)
-                    .groupby("Y").first()["Depth"])
-        for yr in range(2025, 2030):
-            row[str(yr)] = round(yr_depth.get(yr, np.nan), 2)
-        for col in ["R² train", "RMSE train", "R² test", "RMSE test"]:
-            row[col] = metrics.get(col, np.nan)
-        row["lags"] = meta["lags"]
-        row["layers"] = meta["layers"]
-        st.session_state["summary_rows"].append(pd.DataFrame([row]))
-        st.success(f"Saved! Total rows: {len(st.session_state['summary_rows'])}")
+        arima_metrics = []
+        forecast_rows = []
 
-    # Download summary
-    n_rows = len(st.session_state["summary_rows"])
-    st.sidebar.markdown(f"**Saved summaries:** {n_rows}")
-    if n_rows:
-        combined = pd.concat(st.session_state["summary_rows"]).reset_index(drop=True)
-        st.sidebar.download_button("⬇️ Download summary CSV",
-                                   combined.to_csv(index=False).encode(),
-                                   file_name=f"well_summaries_{datetime.today().date()}.csv",
-                                   mime="text/csv")
-        if st.sidebar.checkbox("Show summary table"):
-            st.subheader("📋 Combined Saved Summaries")
-            st.dataframe(combined, use_container_width=True)
+        for well in wells:
+            try:
+                df = raw[["Date", well]].dropna()
+                df.set_index("Date", inplace=True)
+                series = df[well]
+                if len(series) < 24:
+                    continue
+
+                lo, hi = clip_bounds(series)
+                train_size = int(len(series) * 0.8)
+                train = series[:train_size]
+                test = series[train_size:]
+
+                model = ARIMA(train, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)).fit()
+                rmse = round(np.sqrt(mean_squared_error(test, model.forecast(len(test)))), 4)
+
+                full_model = ARIMA(series, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)).fit()
+                future = full_model.get_forecast(60)
+                future_values = np.clip(future.predicted_mean.values, lo, hi)
+                future_dates = pd.date_range(series.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                forecast_df = pd.DataFrame({"Date": future_dates, "Depth": future_values})
+                forecast_df["Year"] = forecast_df["Date"].dt.year
+
+                yearly_avg = forecast_df.groupby("Year")["Depth"].mean().round(2)
+
+                arima_metrics.append({
+                    "Well": well,
+                    "AIC": round(full_model.aic, 1),
+                    "BIC": round(full_model.bic, 1),
+                    "RMSE Test": rmse
+                })
+
+                row = {"Well": well}
+                for y in range(2025, 2030):
+                    row[str(y)] = yearly_avg.get(y, np.nan)
+                forecast_rows.append(row)
+
+            except Exception:
+                continue
+
+        st.markdown("### 📈 ARIMA Model Metrics (All Wells)")
+        st.dataframe(pd.DataFrame(arima_metrics), use_container_width=True)
+
+        st.markdown("### 📅 ARIMA Forecast: Avg Depth per Year (2025–2029)")
+        st.dataframe(pd.DataFrame(forecast_rows), use_container_width=True)
