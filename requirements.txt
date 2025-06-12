@@ -1,7 +1,10 @@
 streamlit
 pandas
+numpy
 matplotlib
+scipy
+plotly
 contextily
 pyproj
-numpy
-scipy
+pymannkendall
+scikit-learn
