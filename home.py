@@ -29,7 +29,7 @@ def set_bg_from_local(image_path):
         left: 0;
         bottom: 8px;
         width: 100%;
-        text-align: bottom center;
+        text-align: center;
         font-size: 14px;
         font-weight: bold;
         color: #999;
