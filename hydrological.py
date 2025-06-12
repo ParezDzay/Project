@@ -22,9 +22,9 @@ def hydrological_analysis_page():
         "📍 Well Spatial Distribution"
     ])
 
-    # === TAB 1: DECOMPOSITION VIEWER AND DOWNLOAD ===
+    # === TAB 1: Decomposition ===
     with tab1:
-        file_path = GW data (missing filled).csv"
+        file_path = "GW data (missing filled).csv"
         if not os.path.exists(file_path):
             st.error("Groundwater data file not found.")
             return
@@ -64,7 +64,6 @@ def hydrological_analysis_page():
                 for i in range(0, len(well_columns), 2):
                     fig, axes = plt.subplots(8, 1, figsize=(8.27, 11.69), sharex=True)
                     fig.subplots_adjust(hspace=0.6)
-                    plotted = 0
                     grouped_axes = []
                     labels = []
 
@@ -79,21 +78,20 @@ def hydrological_analysis_page():
                             continue
 
                         o = j * 4
-                        r.observed.plot(ax=axes[o], color='black', linewidth=1.2)
+                        r.observed.plot(ax=axes[o], color='black')
                         axes[o].set_title("Original", fontsize=10)
                         axes[o].invert_yaxis()
-                        r.trend.plot(ax=axes[o + 1], color='blue', linewidth=1.2)
+                        r.trend.plot(ax=axes[o + 1], color='blue')
                         axes[o + 1].set_title("Trend", fontsize=10)
                         axes[o + 1].invert_yaxis()
-                        r.seasonal.plot(ax=axes[o + 2], color='green', linewidth=1.2)
+                        r.seasonal.plot(ax=axes[o + 2], color='green')
                         axes[o + 2].set_title("Seasonal", fontsize=10)
-                        r.resid.plot(ax=axes[o + 3], color='red', linewidth=1.2)
+                        r.resid.plot(ax=axes[o + 3], color='red')
                         axes[o + 3].set_title("Residual", fontsize=10)
                         grouped_axes.append((axes[o], axes[o + 3]))
                         labels.append(well)
-                        plotted += 1
 
-                    for k in range(plotted * 4, 8):
+                    for k in range(len(labels) * 4, 8):
                         fig.delaxes(axes[k])
 
                     for idx, (top_ax, bottom_ax) in enumerate(grouped_axes):
@@ -138,11 +136,10 @@ def hydrological_analysis_page():
                 mime="application/zip"
             )
 
-    # === TAB 2: HEATMAP ===
+    # === TAB 2: Heatmap ===
     with tab2:
         st.subheader("🌍 Groundwater Trend Heatmap (m/year)")
-
-        coord_path = Wells detailed data.csv"
+        coord_path = "Wells detailed data.csv"
         if not os.path.exists(coord_path):
             st.error("Well coordinates file not found.")
             return
@@ -195,11 +192,11 @@ def hydrological_analysis_page():
         contour = ax.contourf(grid_x, grid_y, grid_z, levels=bounds, cmap=cmap, norm=norm, extend='both')
 
         ax.scatter(mx, my, c='black', s=30, label="Wells")
-        for i, row in merged_df.iterrows():
+        for _, row in merged_df.iterrows():
             ax.text(row["X"], row["Y"], row["W_Label"], fontsize=8, ha='center', va='bottom')
 
         ctx.add_basemap(ax, crs="epsg:3857", source=ctx.providers.Esri.WorldImagery)
-        cbar = plt.colorbar(contour, ax=ax, orientation='vertical', label='Slope (m/year)', shrink=0.8)
+        plt.colorbar(contour, ax=ax, orientation='vertical', label='Slope (m/year)', shrink=0.8)
 
         ax.set_title("Groundwater Trend Heatmap (m/year)")
         ax.set_xlabel("Longitude")
@@ -207,12 +204,11 @@ def hydrological_analysis_page():
         ax.legend()
         st.pyplot(fig)
 
-    # === TAB 3: SPATIAL WELL DISTRIBUTION ===
+    # === TAB 3: Spatial Distribution ===
     with tab3:
         st.subheader("📍 Spatial Distribution of Wells with Meteorological Data")
-
-        gw_path = r"C:\Parez\GW_data_annual.csv"
-        coord_path = r"C:\Parez\Wells detailed data.csv"
+        gw_path = "GW_data_annual.csv"
+        coord_path = "Wells detailed data.csv"
         if not os.path.exists(gw_path) or not os.path.exists(coord_path):
             st.error("Required data file(s) not found.")
             return
