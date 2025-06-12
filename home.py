@@ -34,7 +34,7 @@ def set_bg_from_local(image_path):
     st.markdown(css, unsafe_allow_html=True)
 
 def home_page():
-    set_bg_from_local(r"C:\Parez\background.jpg")
+    set_bg_from_local(background.jpg")
 
     # Centered title with bold font
     st.markdown(
