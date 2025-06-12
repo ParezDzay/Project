@@ -1,7 +1,12 @@
 import streamlit as st
 import base64
+import os
 
 def set_bg_from_local(image_path):
+    if not os.path.exists(image_path):
+        st.warning("Background image not found.")
+        return
+
     with open(image_path, "rb") as image_file:
         encoded = base64.b64encode(image_file.read()).decode()
 
@@ -34,9 +39,8 @@ def set_bg_from_local(image_path):
     st.markdown(css, unsafe_allow_html=True)
 
 def home_page():
-    set_bg_from_local(background.jpg")
+    set_bg_from_local("background.jpg")
 
-    # Centered title with bold font
     st.markdown(
         """
         <h1 style='text-align: center; font-weight: bold;'>
@@ -50,8 +54,7 @@ def home_page():
         **Features**: This application is developed to support the research work of a Master's thesis project.  
         - Explore 20 well data  
         - Visualize well locations on a map  
-        - Groundwater Analysis for 20 wells in CSB in Erbil City
+        - Groundwater analysis for 20 wells in the Central Sub-Basin (CSB) of Erbil City  
     """)
 
-    # Footer label
     st.markdown('<div class="footer">Created by Parez Dizayee</div>', unsafe_allow_html=True)
