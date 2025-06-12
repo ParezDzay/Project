@@ -1,6 +1,7 @@
 streamlit
-plotly
 pandas
+matplotlib
+contextily
+pyproj
 numpy
-scikit-learn
-statsmodels
+scipy
