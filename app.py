@@ -62,5 +62,5 @@ elif page == "🛠️ Data Processing":
 elif page == "🌊 Hydrological Analysis":
     hydrological.hydrological_analysis_page()
 
-elif page == "📊 GW Prediction":  # ✅ NEW ROUTE
+elif page == "📊 GW Prediction":
     groundwater_prediction_page()
