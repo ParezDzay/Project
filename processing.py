@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
 
 # File path
-data_path = GW data.csv"
+data_path = "GW data.csv"
 
 def data_processing_page():
     st.title("Groundwater Data Processing")
@@ -92,15 +92,14 @@ def data_processing_page():
         return df_knn
 
     def convert_df_to_csv(df):
-        # Cache the conversion to prevent recomputation
         return df.to_csv(index=False).encode('utf-8')
 
-    # ----------------- Tab Interface -------------------
+    # ----------------- Tabs -------------------
     tab1, tab2, tab3, tab_compare = st.tabs([
         "1️⃣ Linear Interpolation",
         "2️⃣ Random Forest",
         "3️⃣ KNN Imputation",
-        " Compare Outliers"
+        "📊 Compare Outliers"
     ])
 
     with tab1:
