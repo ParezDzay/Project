@@ -24,7 +24,7 @@ def hydrological_analysis_page():
 
     # === TAB 1: DECOMPOSITION VIEWER AND DOWNLOAD ===
     with tab1:
-        file_path = r"C:\Parez\GW data (missing filled).csv"
+        file_path = GW data (missing filled).csv"
         if not os.path.exists(file_path):
             st.error("Groundwater data file not found.")
             return
@@ -142,7 +142,7 @@ def hydrological_analysis_page():
     with tab2:
         st.subheader("🌍 Groundwater Trend Heatmap (m/year)")
 
-        coord_path = r"C:\Parez\Wells detailed data.csv"
+        coord_path = Wells detailed data.csv"
         if not os.path.exists(coord_path):
             st.error("Well coordinates file not found.")
             return
