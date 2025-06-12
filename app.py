@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 
-import map as map_module
+from map_module import well_map_viewer_page
 from data import groundwater_data_page
 from trend import groundwater_trends_page
 from prediction import groundwater_prediction_page
@@ -48,7 +48,9 @@ if page == "🏠 Home":
     home_page()
 
 elif page == "🌍 Location and Map":
-    map_module.well_map_viewer_page(df)
+    df_coords = pd.read_csv("Wells detailed data.csv")
+    well_map_viewer_page(df_coords)
+
 
 elif page == "📈 GW Data":
     groundwater_data_page()
