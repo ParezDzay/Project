@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
 def groundwater_trends_page():
-    output_path = GW data (missing filled).csv"
+    output_path = "GW data (missing filled).csv"
 
     st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK)")
 
@@ -62,13 +62,11 @@ def groundwater_trends_page():
         ])
 
         trend_df = pd.DataFrame(annual_data, columns=multi_columns)
-
         st.dataframe(trend_df, use_container_width=True)
 
     # === ITA Tab ===
     with tab_ita:
         st.subheader("ITA Analysis – Trend Metrics")
-
         ita_results = []
 
         for well in well_columns:
@@ -117,8 +115,8 @@ def groundwater_trends_page():
     # === ITA Plot Tab ===
     with tab_ita_plot:
         st.subheader("ITA Groundwater Level Comparison Per Well")
-
         annual_means = df.groupby("Year")[well_columns].mean().dropna()
+
         first_years = list(range(2004, 2015))
         second_years = list(range(2015, 2025))
 
