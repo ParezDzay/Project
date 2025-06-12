@@ -6,10 +6,9 @@ import os
 from map_module import well_map_viewer_page
 from data import groundwater_data_page
 from trend import groundwater_trends_page
-from prediction import groundwater_prediction_page
 from processing import data_processing_page
-from home import home_page  # ⬅️ newly imported
-import hydrological  # ⬅️ NEW: Import the hydrological module
+from home import home_page
+import hydrological
 
 output_path = "GW data (missing filled).csv"
 
@@ -23,16 +22,15 @@ page = st.sidebar.radio(
         "🌍 Location and Map", 
         "📈 GW Data", 
         "🛠️ Data Processing",
-        "🌊 Hydrological Analysis",  # ⬅️ NEW: Only added this line
-        "📉 Trends Analysis",
-        "📊 GW Prediction"
+        "🌊 Hydrological Analysis",
+        "📉 Trends Analysis"
     ]
 )
 
 file_path = "Wells detailed data.csv"
 
 df = None
-if page not in ["📈 GW Data", "📉 Trends Analysis", "🛠️ Data Processing", "📊 GW Prediction"]:
+if page in ["🌍 Location and Map"]:
     if not os.path.exists(file_path):
         st.error("Well CSV file not found.")
         st.stop()
@@ -48,9 +46,7 @@ if page == "🏠 Home":
     home_page()
 
 elif page == "🌍 Location and Map":
-    df_coords = pd.read_csv("Wells detailed data.csv")
-    well_map_viewer_page(df_coords)
-
+    well_map_viewer_page(df)
 
 elif page == "📈 GW Data":
     groundwater_data_page()
@@ -61,8 +57,5 @@ elif page == "📉 Trends Analysis":
 elif page == "🛠️ Data Processing":
     data_processing_page()
 
-elif page == "📊 GW Prediction":
-    groundwater_prediction_page(output_path)
-
-elif page == "🌊 Hydrological Analysis":  # ⬅️ NEW: Calls the new page
+elif page == "🌊 Hydrological Analysis":
     hydrological.hydrological_analysis_page()
