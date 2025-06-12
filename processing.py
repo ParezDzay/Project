@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
 
 # File path
-data_path = r"C:\Parez\GW data.csv"
+data_path = GW data.csv"
 
 def data_processing_page():
     st.title("Groundwater Data Processing")
