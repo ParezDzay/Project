@@ -5,8 +5,8 @@ import plotly.express as px
 import os
 
 # File paths - can be parameterized if needed
-gw_file_path = r"C:\Parez\GW data.csv"
-output_path = r"C:\Parez\GW data.csv"
+gw_file_path = GW data.csv"
+output_path = GW data.csv"
 
 def groundwater_data_page():
     st.title("Groundwater Data Over 20 Years")
