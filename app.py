@@ -29,7 +29,7 @@ page = st.sidebar.radio(
     ]
 )
 
-file_path = Wells detailed data.csv"
+file_path = "Wells detailed data.csv"
 
 df = None
 if page not in ["📈 GW Data", "📉 Trends Analysis", "🛠️ Data Processing", "📊 GW Prediction"]:
