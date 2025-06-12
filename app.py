@@ -9,6 +9,7 @@ from trend import groundwater_trends_page
 from processing import data_processing_page
 from home import home_page
 import hydrological
+from prediction import groundwater_prediction_page  # ✅ NEW
 
 output_path = "GW data (missing filled).csv"
 
@@ -23,7 +24,8 @@ page = st.sidebar.radio(
         "📈 GW Data", 
         "🛠️ Data Processing",
         "🌊 Hydrological Analysis",
-        "📉 Trends Analysis"
+        "📉 Trends Analysis",
+        "📊 GW Prediction"  # ✅ NEW
     ]
 )
 
@@ -59,3 +61,6 @@ elif page == "🛠️ Data Processing":
 
 elif page == "🌊 Hydrological Analysis":
     hydrological.hydrological_analysis_page()
+
+elif page == "📊 GW Prediction":  # ✅ NEW ROUTE
+    groundwater_prediction_page()
