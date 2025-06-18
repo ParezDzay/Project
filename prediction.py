@@ -8,11 +8,9 @@ from sklearn.metrics import r2_score, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pathlib import Path
-from datetime import datetime
 import plotly.express as px
 
-# === Configuration ===
-DATA_PATH = "GW_data_annual.csv"
+
 HORIZON_Y = 5
 FORECAST_YEARS = list(range(2025, 2030))
 
@@ -21,7 +19,9 @@ def load_raw(path):
     if not Path(path).exists():
         return None
     df = pd.read_csv(path)
-    df["Date"] = pd.to_datetime(df["Year"], dayfirst=True)
+    if df.columns[0] != "Date":
+        df.rename(columns={df.columns[0]: "Date"}, inplace=True)
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True)
     return df.sort_values("Date").reset_index(drop=True)
 
 def clean_series(df, well):
@@ -74,16 +74,16 @@ def train_ann(df_feat, well, layers, lags, scaler_type, lo, hi):
         fut.append({"Year": nxt.year, "Depth": val})
     return metrics, df_feat, pd.DataFrame(fut)
 
-def groundwater_prediction_page():
+def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     st.title("📊 Groundwater Forecasting")
 
-    raw = load_raw(DATA_PATH)
+    raw = load_raw(data_path)
     if raw is None:
         st.error("CSV file not found.")
         return
 
     wells = [c for c in raw.columns if c.startswith("W")]
-    exog_vars = [c for c in raw.columns if c not in wells + ["Date", "Year"]]
+    exog_vars = [c for c in raw.columns if c not in wells + ["Date"]]
 
     model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA", "📊 ARIMAX"], horizontal=True)
 
