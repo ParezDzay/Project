@@ -170,10 +170,14 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                     raise ValueError("Too few data points")
 
                 exog = raw[["Precipitation"]].copy()
+                exog.columns = ["Precipitation"]
+                exog["Precipitation"] = pd.to_numeric(exog["Precipitation"], errors="coerce")
                 exog.index = raw["Date"]
-                exog = exog.loc[s.index]
-                exog = exog.asfreq("MS")
-                exog = exog.apply(pd.to_numeric, errors="coerce").fillna(method="ffill").fillna(method="bfill")
+                exog = exog.loc[s.index].asfreq("MS")
+                exog = exog.fillna(method="ffill").fillna(method="bfill")
+
+                if exog.isnull().any().any() or exog.dtypes.any() == "object":
+                    raise ValueError("Exogenous variable (Precipitation) is not clean numeric.")
 
                 train_size = int(len(s) * 0.8)
                 train_s, test_s = s[:train_size], s[train_size:]
@@ -181,33 +185,3 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
                 model = SARIMAX(train_s, exog=train_x, order=(1, 1, 1),
                                 enforce_stationarity=False, enforce_invertibility=False).fit()
-                forecast_test = model.forecast(steps=len(test_s), exog=test_x)
-                rmse = np.sqrt(mean_squared_error(test_s, forecast_test))
-
-                full_model = SARIMAX(s, exog=exog, order=(1, 1, 1),
-                                     enforce_stationarity=False, enforce_invertibility=False).fit()
-
-                last_exog = exog.iloc[-1:].values
-                future_exog = np.tile(last_exog, (HORIZON_M, 1))
-
-                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=HORIZON_M, freq="MS")
-                pred = full_model.forecast(steps=HORIZON_M, exog=future_exog)
-                forecast = pd.Series(pred, index=future_index)
-                annual = forecast.resample("Y").mean()
-
-                row = {
-                    "Well": well,
-                    "RMSE": round(rmse, 4),
-                    "AIC": round(full_model.aic, 2),
-                    "BIC": round(full_model.bic, 2)
-                }
-                for y in FORECAST_YEARS:
-                    val = annual[annual.index.year == y]
-                    row[str(y)] = round(val.iloc[0], 2) if not val.empty else np.nan
-                results.append(row)
-            except Exception as e:
-                st.info(f"⚠️ ARIMAX failed for {well}: {e}")
-                continue
-
-        df_arimax = pd.DataFrame(results)
-        st.dataframe(df_arimax, use_container_width=True)
