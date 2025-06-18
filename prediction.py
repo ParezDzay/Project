@@ -159,10 +159,18 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 if len(s.dropna()) < 24:
                     raise ValueError("Too few data points")
 
-                exog = raw[exog_vars].fillna(method='ffill').fillna(method='bfill')
+                exog = raw[exog_vars].copy()
                 exog.index = raw["Date"]
                 exog = exog.loc[s.index]
                 exog = exog.asfreq("MS")
+
+                exog = exog.apply(pd.to_numeric, errors="coerce")
+                exog = exog.fillna(method="ffill").fillna(method="bfill")
+
+                if exog.isnull().any().any():
+                    raise ValueError("Exogenous data still contains NaN.")
+                if exog.dtypes.any() == "object":
+                    raise ValueError("Exogenous data contains non-numeric values.")
 
                 model = SARIMAX(s, exog=exog, order=(1, 1, 1),
                                 enforce_stationarity=False, enforce_invertibility=False).fit()
