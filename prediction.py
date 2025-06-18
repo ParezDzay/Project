@@ -82,8 +82,6 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         return
 
     wells = [c for c in raw.columns if c.startswith("W")]
-    exog_vars = [c for c in raw.columns if c not in wells + ["Date"]]
-
     model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA", "📊 ARIMAX"], horizontal=True)
 
     if model == "🔮 ANN":
@@ -119,7 +117,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         st.dataframe(annual, use_container_width=True)
 
     elif model == "📈 ARIMA":
+        st.subheader("📈 ARIMA (Univariate) Forecast — 2025 to 2029")
         results = []
+
         for well in wells:
             try:
                 s = clean_series(raw, well)
@@ -128,13 +128,24 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 if len(s.dropna()) < 24:
                     raise ValueError("Too few data points")
 
-                model = ARIMA(s, order=(1, 1, 1)).fit()
-                pred = model.forecast(steps=HORIZON_M)
+                train_size = int(len(s) * 0.8)
+                train, test = s[:train_size], s[train_size:]
+                model = ARIMA(train, order=(1, 1, 1)).fit()
+                forecast_test = model.forecast(steps=len(test))
+                rmse = np.sqrt(mean_squared_error(test, forecast_test))
+
+                full_model = ARIMA(s, order=(1, 1, 1)).fit()
+                pred = full_model.forecast(steps=HORIZON_M)
                 future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=HORIZON_M, freq="MS")
                 forecast = pd.Series(pred.values, index=future_index)
                 annual = forecast.resample("Y").mean()
 
-                row = {"Well": well}
+                row = {
+                    "Well": well,
+                    "RMSE": round(rmse, 4),
+                    "AIC": round(full_model.aic, 2),
+                    "BIC": round(full_model.bic, 2)
+                }
                 for y in FORECAST_YEARS:
                     val = annual[annual.index.year == y]
                     row[str(y)] = round(val.iloc[0], 2) if not val.empty else np.nan
@@ -143,14 +154,13 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 st.info(f"⚠️ ARIMA failed for {well}: {e}")
                 continue
 
-        st.subheader("📈 ARIMA Forecast — Avg Annual Depth (2025–2029)")
-        if results:
-            st.dataframe(pd.DataFrame(results), use_container_width=True)
-        else:
-            st.warning("No ARIMA forecasts generated. Check your monthly data.")
+        df_arima = pd.DataFrame(results)
+        st.dataframe(df_arima, use_container_width=True)
 
     elif model == "📊 ARIMAX":
+        st.subheader("📊 ARIMAX (Precipitation as Exogenous) Forecast — 2025 to 2029")
         results = []
+
         for well in wells:
             try:
                 s = clean_series(raw, well)
@@ -159,31 +169,38 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 if len(s.dropna()) < 24:
                     raise ValueError("Too few data points")
 
-                exog = raw[exog_vars].copy()
+                exog = raw[["Precipitation"]].copy()
                 exog.index = raw["Date"]
                 exog = exog.loc[s.index]
                 exog = exog.asfreq("MS")
+                exog = exog.apply(pd.to_numeric, errors="coerce").fillna(method="ffill").fillna(method="bfill")
 
-                exog = exog.apply(pd.to_numeric, errors="coerce")
-                exog = exog.fillna(method="ffill").fillna(method="bfill")
+                train_size = int(len(s) * 0.8)
+                train_s, test_s = s[:train_size], s[train_size:]
+                train_x, test_x = exog[:train_size], exog[train_size:]
 
-                if exog.isnull().any().any():
-                    raise ValueError("Exogenous data still contains NaN.")
-                if exog.dtypes.any() == "object":
-                    raise ValueError("Exogenous data contains non-numeric values.")
-
-                model = SARIMAX(s, exog=exog, order=(1, 1, 1),
+                model = SARIMAX(train_s, exog=train_x, order=(1, 1, 1),
                                 enforce_stationarity=False, enforce_invertibility=False).fit()
+                forecast_test = model.forecast(steps=len(test_s), exog=test_x)
+                rmse = np.sqrt(mean_squared_error(test_s, forecast_test))
+
+                full_model = SARIMAX(s, exog=exog, order=(1, 1, 1),
+                                     enforce_stationarity=False, enforce_invertibility=False).fit()
 
                 last_exog = exog.iloc[-1:].values
                 future_exog = np.tile(last_exog, (HORIZON_M, 1))
 
                 future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=HORIZON_M, freq="MS")
-                pred = model.forecast(steps=HORIZON_M, exog=future_exog)
+                pred = full_model.forecast(steps=HORIZON_M, exog=future_exog)
                 forecast = pd.Series(pred, index=future_index)
                 annual = forecast.resample("Y").mean()
 
-                row = {"Well": well}
+                row = {
+                    "Well": well,
+                    "RMSE": round(rmse, 4),
+                    "AIC": round(full_model.aic, 2),
+                    "BIC": round(full_model.bic, 2)
+                }
                 for y in FORECAST_YEARS:
                     val = annual[annual.index.year == y]
                     row[str(y)] = round(val.iloc[0], 2) if not val.empty else np.nan
@@ -192,8 +209,5 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 st.info(f"⚠️ ARIMAX failed for {well}: {e}")
                 continue
 
-        st.subheader("📊 ARIMAX Forecast — Avg Annual Depth (2025–2029)")
-        if results:
-            st.dataframe(pd.DataFrame(results), use_container_width=True)
-        else:
-            st.warning("No ARIMAX forecasts generated. Check your monthly data.")
+        df_arimax = pd.DataFrame(results)
+        st.dataframe(df_arimax, use_container_width=True)
