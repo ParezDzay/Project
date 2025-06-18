@@ -114,24 +114,36 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         st.subheader("Forecast Table (2025–2029)")
         st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
 
-    elif model == "📈 ARIMA":
+        elif model == "📈 ARIMA":
         results = []
         for well in wells:
             try:
                 s = clean_series(raw, well)
                 s.index = raw["Date"]
+                s = s.asfreq("MS")  # Ensure monthly frequency
+                if len(s.dropna()) < 24:
+                    raise ValueError("Too few data points")
+
                 model = ARIMA(s, order=(1, 1, 1)).fit()
-                pred = model.forecast(steps=HORIZON_Y)
-                f = pd.Series(pred.values, index=pd.date_range(s.index[-1] + pd.DateOffset(years=1), periods=HORIZON_Y, freq='YS'))
+                pred = model.forecast(steps=60)
+                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                forecast = pd.Series(pred.values, index=future_index)
+                annual = forecast.resample("Y").mean()
+
                 row = {"Well": well}
                 for y in FORECAST_YEARS:
-                    sel = f[f.index.year == y]
-                    row[str(y)] = round(sel.iloc[0], 2) if not sel.empty else np.nan
+                    val = annual[annual.index.year == y]
+                    row[str(y)] = round(val.iloc[0], 2) if not val.empty else np.nan
                 results.append(row)
-            except Exception:
+            except Exception as e:
+                st.info(f"⚠️ ARIMA failed for {well}: {e}")
                 continue
-        st.subheader("ARIMA Forecast — 2025 to 2029")
-        st.dataframe(pd.DataFrame(results), use_container_width=True)
+
+        st.subheader("📈 ARIMA Forecast — Avg Annual Depth (2025–2029)")
+        if results:
+            st.dataframe(pd.DataFrame(results), use_container_width=True)
+        else:
+            st.warning("No ARIMA forecasts generated. Check your monthly data.")
 
     elif model == "📊 ARIMAX":
         results = []
@@ -139,20 +151,38 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             try:
                 s = clean_series(raw, well)
                 s.index = raw["Date"]
+                s = s.asfreq("MS")
+                if len(s.dropna()) < 24:
+                    raise ValueError("Too few data points")
+
                 exog = raw[exog_vars].fillna(method='ffill').fillna(method='bfill')
                 exog.index = raw["Date"]
                 exog = exog.loc[s.index]
+                exog = exog.asfreq("MS")
+
                 model = SARIMAX(s, exog=exog, order=(1, 1, 1),
                                 enforce_stationarity=False, enforce_invertibility=False).fit()
-                future_exog = exog[-HORIZON_Y:].reset_index(drop=True)
-                pred = model.forecast(steps=HORIZON_Y, exog=future_exog)
-                f = pd.Series(pred.values, index=pd.date_range(s.index[-1] + pd.DateOffset(years=1), periods=HORIZON_Y, freq='YS'))
+
+                # Forecast using last known values repeated (assumption)
+                last_exog = exog.iloc[-1:].values
+                future_exog = np.tile(last_exog, (60, 1))  # shape (60, n_features)
+
+                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                pred = model.forecast(steps=60, exog=future_exog)
+                forecast = pd.Series(pred, index=future_index)
+                annual = forecast.resample("Y").mean()
+
                 row = {"Well": well}
                 for y in FORECAST_YEARS:
-                    sel = f[f.index.year == y]
-                    row[str(y)] = round(sel.iloc[0], 2) if not sel.empty else np.nan
+                    val = annual[annual.index.year == y]
+                    row[str(y)] = round(val.iloc[0], 2) if not val.empty else np.nan
                 results.append(row)
-            except Exception:
+            except Exception as e:
+                st.info(f"⚠️ ARIMAX failed for {well}: {e}")
                 continue
-        st.subheader("ARIMAX Forecast — 2025 to 2029")
-        st.dataframe(pd.DataFrame(results), use_container_width=True)
+
+        st.subheader("📊 ARIMAX Forecast — Avg Annual Depth (2025–2029)")
+        if results:
+            st.dataframe(pd.DataFrame(results), use_container_width=True)
+        else:
+            st.warning("No ARIMAX forecasts generated. Check your monthly data.")
