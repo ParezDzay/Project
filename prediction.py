@@ -10,8 +10,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pathlib import Path
 import plotly.express as px
 
-
-HORIZON_Y = 5
+HORIZON_M = 60
 FORECAST_YEARS = list(range(2025, 2030))
 
 @st.cache_data(show_spinner=False)
@@ -63,15 +62,15 @@ def train_ann(df_feat, well, layers, lags, scaler_type, lo, hi):
     feats = scaler.feature_names_in_
     r = df_feat.tail(1).iloc[0].copy()
     fut = []
-    for _ in range(HORIZON_Y):
+    for _ in range(HORIZON_M):
         for k in range(lags, 1, -1):
             r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
         r[f"{well}_lag1"] = r["pred"]
-        nxt = r["Date"] + pd.DateOffset(years=1)
+        nxt = r["Date"] + pd.DateOffset(months=1)
         r.update({"Date": nxt})
         val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
         r[well] = r["pred"] = val
-        fut.append({"Year": nxt.year, "Depth": val})
+        fut.append({"Date": nxt, "Depth": val})
     return metrics, df_feat, pd.DataFrame(fut)
 
 def groundwater_prediction_page(data_path="GW_data_annual.csv"):
@@ -91,7 +90,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         well = st.sidebar.selectbox("Select Well", wells)
         clean = clean_series(raw, well)
         lo, hi = clip_bounds(clean[well])
-        lags = st.sidebar.slider("Lag steps", 1, 10, 3)
+        lags = st.sidebar.slider("Lag steps", 1, 12, 6)
         layers = tuple(int(x) for x in st.sidebar.text_input("Hidden layers", "64,32").split(",") if x.strip())
         scaler_choice = st.sidebar.selectbox("Scaler", ["Standard", "Robust"])
         feat = add_lags(clean, well, lags)
@@ -102,31 +101,36 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
         df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
         df_fit = hist[["Date", "pred"]].rename(columns={"pred": "Depth"}).assign(Type="Predicted")
-        df_for = future.assign(Type="Forecast", Date=pd.to_datetime(future["Year"], format="%Y"))
+        df_for = future.assign(Type="Forecast")
         plot_df = pd.concat([df_act, df_fit, df_for])
 
         fig = px.line(plot_df, x="Date", y="Depth", color="Type",
                       labels={"Depth": "Water-table depth (m)"},
                       title=f"{well} — ANN fit & 5-year forecast")
         fig.update_yaxes(autorange="reversed")
+        for t in fig.data:
+            if t.name == "Forecast":
+                t.update(line=dict(dash="dash"))
         st.plotly_chart(fig, use_container_width=True)
 
+        df_for["Year"] = df_for["Date"].dt.year
+        annual = df_for.groupby("Year")["Depth"].mean().reindex(FORECAST_YEARS).round(2).reset_index()
         st.subheader("Forecast Table (2025–2029)")
-        st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
+        st.dataframe(annual, use_container_width=True)
 
-        elif model == "📈 ARIMA":
+    elif model == "📈 ARIMA":
         results = []
         for well in wells:
             try:
                 s = clean_series(raw, well)
                 s.index = raw["Date"]
-                s = s.asfreq("MS")  # Ensure monthly frequency
+                s = s.asfreq("MS")
                 if len(s.dropna()) < 24:
                     raise ValueError("Too few data points")
 
                 model = ARIMA(s, order=(1, 1, 1)).fit()
-                pred = model.forecast(steps=60)
-                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                pred = model.forecast(steps=HORIZON_M)
+                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=HORIZON_M, freq="MS")
                 forecast = pd.Series(pred.values, index=future_index)
                 annual = forecast.resample("Y").mean()
 
@@ -163,12 +167,11 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 model = SARIMAX(s, exog=exog, order=(1, 1, 1),
                                 enforce_stationarity=False, enforce_invertibility=False).fit()
 
-                # Forecast using last known values repeated (assumption)
                 last_exog = exog.iloc[-1:].values
-                future_exog = np.tile(last_exog, (60, 1))  # shape (60, n_features)
+                future_exog = np.tile(last_exog, (HORIZON_M, 1))
 
-                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
-                pred = model.forecast(steps=60, exog=future_exog)
+                future_index = pd.date_range(s.index[-1] + pd.DateOffset(months=1), periods=HORIZON_M, freq="MS")
+                pred = model.forecast(steps=HORIZON_M, exog=future_exog)
                 forecast = pd.Series(pred, index=future_index)
                 annual = forecast.resample("Y").mean()
 
