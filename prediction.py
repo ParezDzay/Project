@@ -37,7 +37,11 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             "Date": df["Date"], well: s,
             "Months": df["Months"],
             "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
-            "month_cos": np.cos(2 * np.pi * df["Months"] / 12)
+            "month_cos": np.cos(2 * np.pi * df["Months"] / 12),
+            "Precipitation": df["Precipitation"],
+            "Temperature": df["Temperature"],
+            "Humidity": df["Humidity"],
+            "Evaporation": df["Evaporation"]
         })
         return out.dropna().reset_index(drop=True)
 
@@ -95,6 +99,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA"], horizontal=True)
 
     if model == "🔮 ANN":
+        if "ann_results" not in st.session_state:
+            st.session_state.ann_results = []
+
         well = st.sidebar.selectbox("Well", wells)
         clean = clean_series(raw, well)
         lo, hi = clip_bounds(clean[well])
@@ -166,55 +173,16 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
         st.dataframe(annual_forecast, use_container_width=True)
 
+        if st.button("➕ Save This Forecast"):
+            forecast_entry = annual_forecast.copy()
+            forecast_entry.insert(0, "Well", well)
+            st.session_state.ann_results.append(forecast_entry)
+            st.success(f"Forecast for {well} saved.")
 
-    elif model == "📈 ARIMA":
-        st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
+        if st.session_state.ann_results:
+            all_forecasts_df = pd.concat(st.session_state.ann_results, ignore_index=True)
+            st.markdown("### 📥 Saved Forecasts for All Wells")
+            st.dataframe(all_forecasts_df, use_container_width=True)
 
-        arima_metrics = []
-        forecast_rows = []
-
-        for well in wells:
-            try:
-                df = raw[["Date", well]].dropna()
-                df.set_index("Date", inplace=True)
-                series = df[well]
-                if len(series) < 24:
-                    continue
-
-                lo, hi = clip_bounds(series)
-                train_size = int(len(series) * 0.8)
-                train = series[:train_size]
-                test = series[train_size:]
-
-                model = ARIMA(train, order=(1, 1, 1)).fit()
-                rmse = round(np.sqrt(mean_squared_error(test, model.forecast(len(test)))), 4)
-
-                full_model = ARIMA(series, order=(1, 1, 1)).fit()
-                future = full_model.get_forecast(60)
-                future_values = np.clip(future.predicted_mean.values, lo, hi)
-                future_dates = pd.date_range(series.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
-                forecast_df = pd.DataFrame({"Date": future_dates, "Depth": future_values})
-                forecast_df["Year"] = forecast_df["Date"].dt.year
-
-                yearly_avg = forecast_df.groupby("Year")["Depth"].mean().round(2)
-
-                arima_metrics.append({
-                    "Well": well,
-                    "AIC": round(full_model.aic, 1),
-                    "BIC": round(full_model.bic, 1),
-                    "RMSE Test": rmse
-                })
-
-                row = {"Well": well}
-                for y in range(2025, 2030):
-                    row[str(y)] = yearly_avg.get(y, np.nan)
-                forecast_rows.append(row)
-
-            except Exception:
-                continue
-
-        st.markdown("### 📈 ARIMA Model Metrics (All Wells)")
-        st.dataframe(pd.DataFrame(arima_metrics), use_container_width=True)
-
-        st.markdown("### 📅 ARIMA Forecast: Avg Depth per Year (2025–2029)")
-        st.dataframe(pd.DataFrame(forecast_rows), use_container_width=True)
+            csv = all_forecasts_df.to_csv(index=False).encode("utf-8")
+            st.download_button("📁 Download All Saved Forecasts as CSV", csv, "ANN_Forecasts.csv", "text/csv")
