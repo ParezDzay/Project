@@ -36,9 +36,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         out = pd.DataFrame({
             "Date": df["Date"], well: s,
             "Months": df["Months"],
-            "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
-            "month_cos": np.cos(2 * np.pi * df["Months"] / 12),
             "Precipitation": df["Precipitation"],
+            "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
+            "month_cos": np.cos(2 * np.pi * df["Months"] / 12)
         })
         return out.dropna().reset_index(drop=True)
 
@@ -183,65 +183,62 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
             csv = all_forecasts_df.to_csv(index=False).encode("utf-8")
             st.download_button("📁 Download All Saved Forecasts as CSV", csv, "ANN_Forecasts.csv", "text/csv")
-        
-        elif model == "📈 ARIMA":
-            st.subheader("📋 ARIMAX (with Precipitation) — Metrics & 5-Year Forecast (All Wells)")
 
-    arimax_metrics = []
-    forecast_rows = []
+    elif model == "📈 ARIMA":
+        st.subheader("📋 ARIMAX (with Precipitation) — Metrics & 5-Year Forecast (All Wells)")
 
-    for well in wells:
-        try:
-            df = raw[["Date", well, "Precipitation"]].dropna()
-            df.set_index("Date", inplace=True)
-            y = df[well]
-            exog = df[["Precipitation"]]
+        arimax_metrics = []
+        forecast_rows = []
 
-            if len(y) < 30:
+        for well in wells:
+            try:
+                df = raw[["Date", well, "Precipitation"]].dropna()
+                df.set_index("Date", inplace=True)
+                y = df[well]
+                exog = df[["Precipitation"]]
+
+                if len(y) < 30:
+                    continue
+
+                lo, hi = clip_bounds(y)
+
+                train_size = int(len(y) * 0.8)
+                y_train, y_test = y[:train_size], y[train_size:]
+                exog_train, exog_test = exog[:train_size], exog[train_size:]
+
+                model = ARIMA(endog=y_train, exog=exog_train, order=(1, 1, 1)).fit()
+                preds = model.forecast(steps=len(y_test), exog=exog_test)
+                rmse = round(np.sqrt(mean_squared_error(y_test, preds)), 4)
+
+                full_model = ARIMA(endog=y, exog=exog, order=(1, 1, 1)).fit()
+
+                future_dates = pd.date_range(y.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                exog_future = pd.DataFrame({"Precipitation": exog["Precipitation"].iloc[-60:].values}, index=future_dates)
+
+                forecast_values = np.clip(full_model.forecast(steps=60, exog=exog_future), lo, hi)
+
+                forecast_df = pd.DataFrame({"Date": future_dates, "Depth": forecast_values})
+                forecast_df["Year"] = forecast_df["Date"].dt.year
+                yearly_avg = forecast_df.groupby("Year")["Depth"].mean().round(2)
+
+                arimax_metrics.append({
+                    "Well": well,
+                    "AIC": round(full_model.aic, 1),
+                    "BIC": round(full_model.bic, 1),
+                    "RMSE Test": rmse
+                })
+
+                row = {"Well": well}
+                for y in range(2025, 2030):
+                    row[str(y)] = yearly_avg.get(y, np.nan)
+                forecast_rows.append(row)
+
+            except Exception as e:
+                st.warning(f"Skipped {well} due to error: {e}")
                 continue
 
-            lo, hi = clip_bounds(y)
+        st.markdown("### 📈 ARIMAX Model Metrics (All Wells)")
+        st.dataframe(pd.DataFrame(arimax_metrics), use_container_width=True)
 
-            # Train-test split
-            train_size = int(len(y) * 0.8)
-            y_train, y_test = y[:train_size], y[train_size:]
-            exog_train, exog_test = exog[:train_size], exog[train_size:]
-
-            model = ARIMA(endog=y_train, exog=exog_train, order=(1, 1, 1)).fit()
-            preds = model.forecast(steps=len(y_test), exog=exog_test)
-            rmse = round(np.sqrt(mean_squared_error(y_test, preds)), 4)
-
-            # Full model for forecasting
-            full_model = ARIMA(endog=y, exog=exog, order=(1, 1, 1)).fit()
-
-            future_dates = pd.date_range(y.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
-            exog_future = exog.iloc[-60:].copy()
-            exog_future.index = future_dates  # assume repeating last 60 months if necessary
-
-            forecast_values = np.clip(full_model.forecast(steps=60, exog=exog_future), lo, hi)
-
-            forecast_df = pd.DataFrame({"Date": future_dates, "Depth": forecast_values})
-            forecast_df["Year"] = forecast_df["Date"].dt.year
-            yearly_avg = forecast_df.groupby("Year")["Depth"].mean().round(2)
-
-            arimax_metrics.append({
-                "Well": well,
-                "AIC": round(full_model.aic, 1),
-                "BIC": round(full_model.bic, 1),
-                "RMSE Test": rmse
-            })
-
-            row = {"Well": well}
-            for y in range(2025, 2030):
-                row[str(y)] = yearly_avg.get(y, np.nan)
-            forecast_rows.append(row)
-
-        except Exception as e:
-            st.warning(f"Skipped {well} due to error: {e}")
-            continue
-
-    st.markdown("### 📈 ARIMAX Model Metrics (All Wells)")
-    st.dataframe(pd.DataFrame(arimax_metrics), use_container_width=True)
-
-    st.markdown("### 📅 ARIMAX Forecast: Avg Depth per Year (2025–2029)")
-    st.dataframe(pd.DataFrame(forecast_rows), use_container_width=True)
+        st.markdown("### 📅 ARIMAX Forecast: Avg Depth per Year (2025–2029)")
+        st.dataframe(pd.DataFrame(forecast_rows), use_container_width=True)
