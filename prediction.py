@@ -96,7 +96,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     wells = [c for c in raw.columns if c.startswith("W")]
     model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA"], horizontal=True)
 
-        if model == "🔮 ANN":
+    if model == "🔮 ANN":
         st.subheader("🔍 ANN Model Metrics (All Wells)")
         lags = st.sidebar.slider("Lag steps", 1, 24, 12)
         layers = tuple(int(x) for x in st.sidebar.text_input("Hidden layers", "64,32").split(",") if x.strip())
@@ -132,7 +132,6 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         st.dataframe(pd.DataFrame(metrics_table), use_container_width=True)
         st.subheader("🗒️ ANN Forecast — Avg Depth per Year (2025–2029)")
         st.dataframe(pd.DataFrame(forecast_table), use_container_width=True)
-
 
     elif model == "📈 ARIMA":
         st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
