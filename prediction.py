@@ -18,16 +18,22 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     HORIZON_M = 60
 
     @st.cache_data(show_spinner=False)
-    def load_raw(path):
-        if not Path(path).exists():
-            return None
-        df = pd.read_csv(path)
-        if "Date" in df.columns:
-            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df["Months"] = df["Date"].dt.month
-        else:
-            raise ValueError("The file must include a 'Date' column.")
-        return df.sort_values("Date").reset_index(drop=True)
+    @st.cache_data(show_spinner=False)
+def load_raw(path):
+    if not Path(path).exists():
+        return None
+
+    df = pd.read_csv(path)
+    df.columns = df.columns.str.strip()  # Remove any accidental whitespace
+
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["Months"] = df["Date"].dt.month
+    else:
+        st.error(f"CSV file must contain a 'Date' column. Found columns: {list(df.columns)}")
+        raise ValueError("The file must include a 'Date' column.")
+
+    return df.sort_values("Date").reset_index(drop=True)
 
     def clean_series(df, well):
         s = df[well].copy()
