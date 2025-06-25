@@ -115,6 +115,8 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         df_for = future.assign(Type="Forecast")
         plot_df = pd.concat([df_act, df_fit, df_for])
 
+        forecast_start = df_act["Date"].max().to_pydatetime()
+
         fig = px.line(
             plot_df,
             x="Date",
@@ -136,8 +138,11 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         )
 
         fig.add_vline(
-            x=df_act["Date"].max(),
-            ...
+            x=forecast_start,
+            line_dash="dot",
+            line_color="gray",
+            annotation_text="Forecast Start",
+            annotation_position="top right"
         )
 
         st.plotly_chart(fig, use_container_width=True)
