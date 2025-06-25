@@ -186,3 +186,55 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
             csv = all_forecasts_df.to_csv(index=False).encode("utf-8")
             st.download_button("📁 Download All Saved Forecasts as CSV", csv, "ANN_Forecasts.csv", "text/csv")
+
+    elif model == "📈 ARIMA":
+        st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
+
+        arima_metrics = []
+        forecast_rows = []
+
+        for well in wells:
+            try:
+                df = raw[["Date", well]].dropna()
+                df.set_index("Date", inplace=True)
+                series = df[well]
+                if len(series) < 24:
+                    continue
+
+                lo, hi = clip_bounds(series)
+                train_size = int(len(series) * 0.8)
+                train = series[:train_size]
+                test = series[train_size:]
+
+                model = ARIMA(train, order=(1, 1, 1)).fit()
+                rmse = round(np.sqrt(mean_squared_error(test, model.forecast(len(test)))), 4)
+
+                full_model = ARIMA(series, order=(1, 1, 1)).fit()
+                future = full_model.get_forecast(60)
+                future_values = np.clip(future.predicted_mean.values, lo, hi)
+                future_dates = pd.date_range(series.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
+                forecast_df = pd.DataFrame({"Date": future_dates, "Depth": future_values})
+                forecast_df["Year"] = forecast_df["Date"].dt.year
+
+                yearly_avg = forecast_df.groupby("Year")["Depth"].mean().round(2)
+
+                arima_metrics.append({
+                    "Well": well,
+                    "AIC": round(full_model.aic, 1),
+                    "BIC": round(full_model.bic, 1),
+                    "RMSE Test": rmse
+                })
+
+                row = {"Well": well}
+                for y in range(2025, 2030):
+                    row[str(y)] = yearly_avg.get(y, np.nan)
+                forecast_rows.append(row)
+
+            except Exception:
+                continue
+
+        st.markdown("### 📈 ARIMA Model Metrics (All Wells)")
+        st.dataframe(pd.DataFrame(arima_metrics), use_container_width=True)
+
+        st.markdown("### 📅 ARIMA Forecast: Avg Depth per Year (2025–2029)")
+        st.dataframe(pd.DataFrame(forecast_rows), use_container_width=True)
