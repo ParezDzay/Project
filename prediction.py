@@ -34,15 +34,10 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         iqr = q3 - q1
         s = s.where(s.between(q1 - 3 * iqr, q3 + 3 * iqr)).interpolate(limit_direction="both")
         out = pd.DataFrame({
-            "Date": df["Date"],
-            well: s,
+            "Date": df["Date"], well: s,
             "Months": df["Months"],
             "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
-            "month_cos": np.cos(2 * np.pi * df["Months"] / 12),
-            "Precipitation": df["Precipitation"],
-            "Temperature": df["Temperature"],
-            "Humidity": df["Humidity"],
-            "Evaporation": df["Evaporation"]
+            "month_cos": np.cos(2 * np.pi * df["Months"] / 12)
         })
         return out.dropna().reset_index(drop=True)
 
@@ -83,13 +78,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
             r[f"{well}_lag1"] = r["pred"]
             nxt = r["Date"] + pd.DateOffset(months=1)
-            r.update({
-                "Date": nxt,
-                "Months": nxt.month,
-                "month_sin": np.sin(2 * np.pi * nxt.month / 12),
-                "month_cos": np.cos(2 * np.pi * nxt.month / 12)
-            })
-            # Repeat last meteo values (or you can improve this by forecasting them separately)
+            r.update({"Date": nxt, "Months": nxt.month,
+                      "month_sin": np.sin(2 * np.pi * nxt.month / 12),
+                      "month_cos": np.cos(2 * np.pi * nxt.month / 12)})
             val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
             r[well] = r["pred"] = val
             fut.append({"Date": nxt, "Depth": val})
@@ -124,21 +115,27 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         df_for = future.assign(Type="Forecast")
         plot_df = pd.concat([df_act, df_fit, df_for])
 
+        forecast_start = df_act["Date"].max()
+
         fig = px.line(
             plot_df,
             x="Date",
             y="Depth",
             color="Type",
             line_dash="Type",
-            labels={"Depth": "Water-table depth (m)"},
-            title=f"{well} — ANN fit & 5-year forecast",
+            labels={"Depth": "Water-table depth (m)", "Date": "Date", "Type": "Legend"},
+            title=f"{well} — ANN Fit & 5-Year Forecast",
             render_mode="svg",
             line_shape="spline"
         )
 
         fig.update_yaxes(autorange="reversed")
 
-        forecast_start = df_act["Date"].max()
+        fig.update_traces(
+            selector=dict(name="Forecast"),
+            line=dict(dash="dash", width=2),
+            opacity=0.7
+        )
 
         fig.add_shape(
             type="line",
@@ -148,7 +145,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             y1=1,
             xref="x",
             yref="paper",
-            line=dict(color="gray", dash="dot"),
+            line=dict(color="gray", dash="dot")
         )
 
         fig.add_annotation(
@@ -157,8 +154,8 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             yref="paper",
             showarrow=False,
             text="Forecast Start",
-            align="right",
-            bgcolor="white"
+            bgcolor="white",
+            font=dict(color="gray")
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -168,6 +165,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         annual_forecast = df_for.groupby("Year")["Depth"].mean().reset_index()
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
         st.dataframe(annual_forecast, use_container_width=True)
+
 
     elif model == "📈 ARIMA":
         st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
