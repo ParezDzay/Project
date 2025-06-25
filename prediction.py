@@ -160,8 +160,11 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("🗒️ 5-Year Forecast Table")
-        st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
+        st.subheader("🗒️ 5-Year Forecast Table (Annual Average)")
+        df_for["Year"] = df_for["Date"].dt.year
+        annual_forecast = df_for.groupby("Year")["Depth"].mean().reset_index()
+        annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
+        st.dataframe(annual_forecast, use_container_width=True)
 
     elif model == "📈 ARIMA":
         st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
