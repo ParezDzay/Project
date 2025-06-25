@@ -15,18 +15,19 @@ import plotly.express as px
 def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     st.title("📊 Groundwater Forecasting")
 
-    HORIZON_M = 60
+    HORIZON_M = 60  # 5 years
 
     @st.cache_data(show_spinner=False)
     def load_raw(path):
         if not Path(path).exists():
             return None
         df = pd.read_csv(path)
-        if "Date" in df.columns:
-            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df["Months"] = df["Date"].dt.month
-        else:
-            raise ValueError("The file must include a 'Date' column.")
+        df.columns = df.columns.str.strip()
+        if "Date" not in df.columns:
+            st.error(f"CSV file must contain a 'Date' column. Found columns: {list(df.columns)}")
+            raise ValueError("Missing 'Date' column")
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["Months"] = df["Date"].dt.month
         return df.sort_values("Date").reset_index(drop=True)
 
     def clean_series(df, well):
@@ -34,9 +35,12 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         q1, q3 = s.quantile(0.25), s.quantile(0.75)
         iqr = q3 - q1
         s = s.where(s.between(q1 - 3 * iqr, q3 + 3 * iqr)).interpolate(limit_direction="both")
-        out = pd.DataFrame({"Date": df["Date"], well: s, "Months": df["Months"]})
-        out["month_sin"] = np.sin(2 * np.pi * out["Months"] / 12)
-        out["month_cos"] = np.cos(2 * np.pi * out["Months"] / 12)
+        out = pd.DataFrame({
+            "Date": df["Date"], well: s,
+            "Months": df["Months"],
+            "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
+            "month_cos": np.cos(2 * np.pi * df["Months"] / 12)
+        })
         return out.dropna().reset_index(drop=True)
 
     def add_lags(df, well, n):
@@ -145,10 +149,10 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 train = series[:train_size]
                 test = series[train_size:]
 
-                model = ARIMA(train, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)).fit()
+                model = ARIMA(train, order=(1, 1, 1)).fit()
                 rmse = round(np.sqrt(mean_squared_error(test, model.forecast(len(test)))), 4)
 
-                full_model = ARIMA(series, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)).fit()
+                full_model = ARIMA(series, order=(1, 1, 1)).fit()
                 future = full_model.get_forecast(60)
                 future_values = np.clip(future.predicted_mean.values, lo, hi)
                 future_dates = pd.date_range(series.index[-1] + pd.DateOffset(months=1), periods=60, freq="MS")
