@@ -123,6 +123,8 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             line_dash="Type",
             labels={"Depth": "Water-table depth (m)", "Date": "Date", "Type": "Legend"},
             title=f"{well} — ANN Fit & 5-Year Forecast",
+            render_mode="svg",
+            line_shape="spline"
         )
 
         fig.update_yaxes(autorange="reversed")
