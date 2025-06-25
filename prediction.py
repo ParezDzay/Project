@@ -97,41 +97,38 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     model = st.radio("Choose Model", ["🔮 ANN", "📈 ARIMA"], horizontal=True)
 
     if model == "🔮 ANN":
-        st.subheader("🔍 ANN Model Metrics (All Wells)")
+        well = st.sidebar.selectbox("Well", wells)
+        clean = clean_series(raw, well)
+        lo, hi = clip_bounds(clean[well])
         lags = st.sidebar.slider("Lag steps", 1, 24, 12)
+        if len(clean) < lags * 10:
+            lags = max(1, len(clean) // 10)
+            st.info(f"Lags auto-reduced to {lags}")
         layers = tuple(int(x) for x in st.sidebar.text_input("Hidden layers", "64,32").split(",") if x.strip())
         scaler_choice = st.sidebar.selectbox("Scaler", ["Standard", "Robust"])
+        feat = add_lags(clean, well, lags)
+        metrics, hist, future = train_ann(feat, well, layers, lags, scaler_choice, lo, hi)
 
-        metrics_table = []
-        forecast_table = []
+        st.subheader("🔍 ANN Model Metrics")
+        st.json(metrics)
 
-        for well in wells:
-            try:
-                clean = clean_series(raw, well)
-                if len(clean) < lags * 5:
-                    continue
-                lo, hi = clip_bounds(clean[well])
-                feat = add_lags(clean, well, lags)
-                metrics, hist, future = train_ann(feat, well, layers, lags, scaler_choice, lo, hi)
+        df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
+        df_fit = hist[["Date", "pred"]].rename(columns={"pred": "Depth"}).assign(Type="Predicted")
+        df_for = future.assign(Type="Forecast")
+        plot_df = pd.concat([df_act, df_fit, df_for])
 
-                metrics_table.append({
-                    "Well": well,
-                    **metrics
-                })
+        fig = px.line(plot_df, x="Date", y="Depth", color="Type",
+                      labels={"Depth": "Water-table depth (m)"},
+                      title=f"{well} — ANN fit & 5-year forecast")
+        fig.update_yaxes(autorange="reversed")
+        for t in fig.data:
+            if t.name == "Forecast":
+                t.update(line=dict(dash="dash"))
+        fig.add_vline(x=df_act["Date"].max(), line_dash="dot", line_color="gray")
+        st.plotly_chart(fig, use_container_width=True)
 
-                future["Year"] = future["Date"].dt.year
-                annual_avg = future.groupby("Year")["Depth"].mean().round(2)
-                row = {"Well": well}
-                for y in range(2025, 2030):
-                    row[str(y)] = annual_avg.get(y, np.nan)
-                forecast_table.append(row)
-
-            except Exception:
-                continue
-
-        st.dataframe(pd.DataFrame(metrics_table), use_container_width=True)
-        st.subheader("🗒️ ANN Forecast — Avg Depth per Year (2025–2029)")
-        st.dataframe(pd.DataFrame(forecast_table), use_container_width=True)
+        st.subheader("🗒️ 5-Year Forecast Table")
+        st.dataframe(df_for.style.format({"Depth": "{:.2f}"}), use_container_width=True)
 
     elif model == "📈 ARIMA":
         st.subheader("📋 ARIMA Metrics & 5-Year Forecast (All Wells)")
