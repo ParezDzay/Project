@@ -34,11 +34,12 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         iqr = q3 - q1
         s = s.where(s.between(q1 - 3 * iqr, q3 + 3 * iqr)).interpolate(limit_direction="both")
         out = pd.DataFrame({
-            "Date": df["Date"], well: s,
+            "Date": df["Date"],
+            well: s,
             "Months": df["Months"],
+            "Precipitation": df["Precipitation"],
             "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
             "month_cos": np.cos(2 * np.pi * df["Months"] / 12),
-            "Precipitation": df["Precipitation"]
         })
         return out.dropna().reset_index(drop=True)
 
@@ -79,14 +80,14 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
                 r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
             r[f"{well}_lag1"] = r["pred"]
             nxt = r["Date"] + pd.DateOffset(months=1)
-            r.update({"Date": nxt, "Months": nxt.month,
-                      "month_sin": np.sin(2 * np.pi * nxt.month / 12),
-                      "month_cos": np.cos(2 * np.pi * nxt.month / 12)})
+            r.update({
+                "Date": nxt,
+                "Months": nxt.month,
+                "Precipitation": r["Precipitation"],  # last known value retained
+                "month_sin": np.sin(2 * np.pi * nxt.month / 12),
+                "month_cos": np.cos(2 * np.pi * nxt.month / 12)
+            })
             val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
             r[well] = r["pred"] = val
             fut.append({"Date": nxt, "Depth": val})
         return metrics, df_feat, pd.DataFrame(fut)
-
-    # The rest of the script remains unchanged...
-    # Use the existing app logic for sidebar interaction, plotting, and results display.
-    # This change ensures only 'Precipitation' is used from meteorological variables.
