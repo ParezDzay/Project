@@ -40,7 +40,6 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
             "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
             "month_cos": np.cos(2 * np.pi * df["Months"] / 12),
             "Precipitation": df["Precipitation"],
-            "Temperature": df["Temperature"],
         })
         return out.dropna().reset_index(drop=True)
 
