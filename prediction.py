@@ -13,10 +13,9 @@ from datetime import datetime
 import plotly.express as px
 
 
-def groundwater_prediction_page():
+def groundwater_prediction_page(data_path="GW data (missing filled).csv"):
     st.title("📊 Groundwater Forecasting")
 
-    DATA_PATH = "GW data (missing filled).csv"
     HORIZON_M = 60
 
     @st.cache_data(show_spinner=False)
@@ -82,7 +81,7 @@ def groundwater_prediction_page():
             fut.append({"Date": nxt, "Depth": val})
         return metrics, df_feat, pd.DataFrame(fut)
 
-    raw = load_raw(DATA_PATH)
+    raw = load_raw(data_path)
     if raw is None:
         st.error("CSV not found. Upload to continue.")
         return
