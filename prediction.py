@@ -137,10 +137,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
         fig.add_vline(
             x=df_act["Date"].max(),
-            line_dash="dot",
-            line_color="gray",
-            annotation_text="Forecast Start",
-            annotation_position="top right"
+            ...
         )
 
         st.plotly_chart(fig, use_container_width=True)
