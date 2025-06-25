@@ -4,9 +4,18 @@ import numpy as np
 import plotly.express as px
 import os
 
+from prediction import groundwater_prediction_page
+
 # File paths
 gw_file_path = "GW data.csv"
-output_path = "GW data.csv"  # same path; if needed, differentiate for edited/final files
+output_path = "GW data.csv"  # Can be changed if a separate filled version is needed
+
+# Page configuration
+st.set_page_config(page_title="Groundwater Forecast App", layout="wide")
+
+# Sidebar navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["📊 Groundwater Data", "🔮 Forecasting Models"])
 
 def groundwater_data_page():
     st.title("Groundwater Data Over 20 Years")
@@ -19,12 +28,12 @@ def groundwater_data_page():
         # Load groundwater data
         gw_df = pd.read_csv(output_path)
 
-        # Ensure Year and Months columns exist
+        # Ensure required columns
         if "Year" not in gw_df.columns or "Months" not in gw_df.columns:
             st.error("Columns 'Year' and 'Months' are required in the dataset.")
             return
 
-        # Convert date columns
+        # Convert to datetime
         gw_df["Year"] = gw_df["Year"].astype(int)
         gw_df["Months"] = gw_df["Months"].astype(int)
         gw_df["Date"] = pd.to_datetime(
@@ -32,22 +41,20 @@ def groundwater_data_page():
             format="%Y-%m-%d"
         )
 
-        # List well columns
+        # Well columns
         well_cols = [col for col in gw_df.columns if col not in ["Year", "Months", "Date"]]
 
-        # Tabs for data
+        # Tabs
         tab1, tab2, tab3 = st.tabs([
             "📉 Data with Missing",
             "✏️ Edit Raw Data",
             "✅ Data without Missing",
         ])
 
-        # Tab 1: Raw data preview
         with tab1:
             st.subheader("Raw Groundwater Table (with missing)")
             st.dataframe(gw_df, use_container_width=True)
 
-        # Tab 2: Data editing
         with tab2:
             st.subheader("Edit and Save Raw Groundwater Data")
             edited_df = st.data_editor(gw_df, num_rows="dynamic", use_container_width=True)
@@ -55,7 +62,6 @@ def groundwater_data_page():
                 edited_df.to_csv(gw_file_path, index=False)
                 st.success("Groundwater data saved successfully.")
 
-        # Tab 3: Data visualization
         with tab3:
             st.subheader("Groundwater Table (Missing Data Filled)")
             st.dataframe(gw_df, use_container_width=True)
@@ -86,3 +92,9 @@ def groundwater_data_page():
 
     except Exception as e:
         st.error(f"Error processing groundwater data: {e}")
+
+# Run selected page
+if page == "📊 Groundwater Data":
+    groundwater_data_page()
+elif page == "🔮 Forecasting Models":
+    groundwater_prediction_page("GW data.csv")
