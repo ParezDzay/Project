@@ -183,9 +183,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
             csv = all_forecasts_df.to_csv(index=False).encode("utf-8")
             st.download_button("📁 Download All Saved Forecasts as CSV", csv, "ANN_Forecasts.csv", "text/csv")
-
-    elif model == "📈 ARIMA":
-    st.subheader("📋 ARIMAX (with Precipitation) — Metrics & 5-Year Forecast (All Wells)")
+        
+        elif model == "📈 ARIMA":
+            st.subheader("📋 ARIMAX (with Precipitation) — Metrics & 5-Year Forecast (All Wells)")
 
     arimax_metrics = []
     forecast_rows = []
