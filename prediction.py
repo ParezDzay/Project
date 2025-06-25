@@ -1,5 +1,3 @@
-# prediction.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -117,14 +115,32 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         df_for = future.assign(Type="Forecast")
         plot_df = pd.concat([df_act, df_fit, df_for])
 
-        fig = px.line(plot_df, x="Date", y="Depth", color="Type",
-                      labels={"Depth": "Water-table depth (m)"},
-                      title=f"{well} — ANN fit & 5-year forecast")
+        fig = px.line(
+            plot_df,
+            x="Date",
+            y="Depth",
+            color="Type",
+            line_dash="Type",
+            labels={"Depth": "Water-table depth (m)", "Date": "Date", "Type": "Legend"},
+            title=f"{well} — ANN Fit & 5-Year Forecast",
+        )
+
         fig.update_yaxes(autorange="reversed")
-        for t in fig.data:
-            if t.name == "Forecast":
-                t.update(line=dict(dash="dash"))
-        fig.add_vline(x=df_act["Date"].max(), line_dash="dot", line_color="gray")
+
+        fig.update_traces(
+            selector=dict(name="Forecast"),
+            line=dict(dash="dash", width=2),
+            opacity=0.7
+        )
+
+        fig.add_vline(
+            x=df_act["Date"].max(),
+            line_dash="dot",
+            line_color="gray",
+            annotation_text="Forecast Start",
+            annotation_position="top right"
+        )
+
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("🗒️ 5-Year Forecast Table")
