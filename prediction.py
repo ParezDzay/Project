@@ -9,11 +9,10 @@ from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.metrics import r2_score, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
 from pathlib import Path
-from datetime import datetime
 import plotly.express as px
 
 
-def groundwater_prediction_page(data_path="GW data (missing filled).csv"):
+def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     st.title("📊 Groundwater Forecasting")
 
     HORIZON_M = 60
@@ -23,7 +22,11 @@ def groundwater_prediction_page(data_path="GW data (missing filled).csv"):
         if not Path(path).exists():
             return None
         df = pd.read_csv(path)
-        df["Date"] = pd.to_datetime(df["Year"].astype(str) + "-" + df["Months"].astype(str) + "-01")
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+            df["Months"] = df["Date"].dt.month
+        else:
+            raise ValueError("The file must include a 'Date' column.")
         return df.sort_values("Date").reset_index(drop=True)
 
     def clean_series(df, well):
@@ -31,7 +34,7 @@ def groundwater_prediction_page(data_path="GW data (missing filled).csv"):
         q1, q3 = s.quantile(0.25), s.quantile(0.75)
         iqr = q3 - q1
         s = s.where(s.between(q1 - 3 * iqr, q3 + 3 * iqr)).interpolate(limit_direction="both")
-        out = pd.DataFrame({"Date": df["Date"], well: s, "Months": df["Date"].dt.month})
+        out = pd.DataFrame({"Date": df["Date"], well: s, "Months": df["Months"]})
         out["month_sin"] = np.sin(2 * np.pi * out["Months"] / 12)
         out["month_cos"] = np.cos(2 * np.pi * out["Months"] / 12)
         return out.dropna().reset_index(drop=True)
@@ -101,7 +104,6 @@ def groundwater_prediction_page(data_path="GW data (missing filled).csv"):
         scaler_choice = st.sidebar.selectbox("Scaler", ["Standard", "Robust"])
         feat = add_lags(clean, well, lags)
         metrics, hist, future = train_ann(feat, well, layers, lags, scaler_choice, lo, hi)
-        meta = {"lags": lags, "layers": ",".join(map(str, layers))}
 
         st.subheader("🔍 ANN Model Metrics")
         st.json(metrics)
