@@ -58,7 +58,7 @@ def draw_frame(lon, lat, z, labels, title: str, grid_res: int, n_levels: int) ->
     mask    = (~np.isnan(lon_arr)) & (~np.isnan(lat_arr)) & (~np.isnan(z_arr))
     lon_arr, lat_arr, z_arr = lon_arr[mask], lat_arr[mask], z_arr[mask]
     lbls    = np.asarray(labels)[mask]
-    fig, ax = plt.subplots(figsize=(6.5, 6.5), dpi=100)
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=100)
     if len(lon_arr) >= 3:
         lon_g, lat_g, z_g = rbf_surface(lon_arr, lat_arr, z_arr, grid_res)
         cf = ax.contourf(lon_g, lat_g, z_g, levels=n_levels, cmap="viridis", alpha=0.6)
