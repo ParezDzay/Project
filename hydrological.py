@@ -16,10 +16,9 @@ import matplotlib.colors as mcolors
 def hydrological_analysis_page():
     st.title("🌊 Hydrological Analysis")
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2 = st.tabs([
         "📉 Time Series Decomposition",
         "🌍 Groundwater Heatmap",
-        "📍 Well Spatial Distribution"
     ])
 
     # === TAB 1: Decomposition ===
@@ -202,52 +201,4 @@ def hydrological_analysis_page():
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
         ax.legend()
-        st.pyplot(fig)
-
-    # === TAB 3: Spatial Distribution ===
-    with tab3:
-        st.subheader("📍 Spatial Distribution of Wells with Meteorological Data")
-        gw_path = "GW_data_annual.csv"
-        coord_path = "Wells detailed data.csv"
-        if not os.path.exists(gw_path) or not os.path.exists(coord_path):
-            st.error("Required data file(s) not found.")
-            return
-
-        df_annual = pd.read_csv(gw_path)
-        coord_df = pd.read_csv(coord_path)
-        coord_df.columns = coord_df.columns.str.strip().str.replace('\n', ' ').str.replace('\r', '')
-        coord_df = coord_df[coord_df['Well Name'].notna()].copy()
-        coord_df["Well Name"] = coord_df["Well Name"].str.strip()
-
-        well_cols = [col for col in df_annual.columns if col.startswith("W")]
-        well_means = df_annual[well_cols].mean().reset_index()
-        well_means.columns = ["Well Name", "Mean Value"]
-
-        merged = pd.merge(well_means, coord_df, on="Well Name", how="inner")
-
-        transformer = pyproj.Transformer.from_crs("epsg:32638", "epsg:3857", always_xy=True)
-        merged["X"], merged["Y"] = transformer.transform(
-            merged["GPS Coor. (UTM) X"].values,
-            merged["GPS Coor. (UTM) Y"].values
-        )
-
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sc = ax.scatter(
-            merged["X"], merged["Y"],
-            c=merged["Mean Value"],
-            cmap="YlGnBu", s=120, edgecolor='black', alpha=0.85
-        )
-
-        for _, row in merged.iterrows():
-            ax.text(row["X"], row["Y"] + 50, row["Well Name"], fontsize=8, ha='center', color='black')
-
-        ctx.add_basemap(ax, crs="epsg:3857", source=ctx.providers.Esri.WorldImagery)
-        plt.colorbar(sc, ax=ax, label="Mean Groundwater Level")
-        ax.set_title("Spatial Distribution of Wells")
-        ax.set_xlabel("Longitude")
-        ax.set_ylabel("Latitude")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.grid(False)
-        plt.tight_layout()
         st.pyplot(fig)
