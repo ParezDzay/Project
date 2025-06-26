@@ -10,7 +10,7 @@ from processing import data_processing_page
 from home import home_page
 import hydrological
 from prediction import groundwater_prediction_page
-from result import result_page  # ✅ NEW PAGE
+from result import result_page 
 
 output_path = "GW data (missing filled).csv"
 
