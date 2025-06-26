@@ -9,8 +9,7 @@ from trend import groundwater_trends_page
 from processing import data_processing_page
 from home import home_page
 import hydrological
-from prediction import groundwater_prediction_page
-from pages import result  # ✅ UPDATED: assuming result.py is in /pages
+from prediction import groundwater_prediction_page  # ✅ NEW
 
 output_path = "GW data (missing filled).csv"
 
@@ -26,8 +25,7 @@ page = st.sidebar.radio(
         "🛠️ Data Processing",
         "🌊 Hydrological Analysis",
         "📉 Trends Analysis",
-        "📊 GW Prediction",
-        "📸 Result Visualization"  # ✅ NEW PAGE
+        "📊 GW Prediction"  # ✅ NEW
     ]
 )
 
@@ -66,6 +64,3 @@ elif page == "🌊 Hydrological Analysis":
 
 elif page == "📊 GW Prediction":
     groundwater_prediction_page("GW_data_annual.csv")
-
-elif page == "📸 Result Visualization":  # ✅ NEW CALL
-    result.main()
