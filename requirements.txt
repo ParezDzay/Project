@@ -9,3 +9,5 @@ pyproj
 pymannkendall
 scikit-learn
 statsmodels
+pykrige
+Pillow
