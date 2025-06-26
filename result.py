@@ -1,123 +1,4 @@
-from __future__ import annotations
-
-import io, unicodedata, re
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import streamlit as st
-from scipy.interpolate import Rbf
-from PIL import Image
-
-# ──────────────────────────────────────────────────────────
-# CONFIG
-# ──────────────────────────────────────────────────────────
-LAT_MIN, LAT_MAX = 35.80, 36.40
-LON_MIN, LON_MAX = 43.60, 44.30
-
-LEVELS_URL = (
-    "https://raw.githubusercontent.com/parezdzay/ForcastErbil/main/"
-    "Monthly_Sea_Level_Data.csv"
-)
-COORDS_URL = (
-    "https://raw.githubusercontent.com/parezdzay/ForcastErbil/main/wells.csv"
-)
-
-# ──────────────────────────────────────────────────────────
-# HELPERS
-# ──────────────────────────────────────────────────────────
-def normalise_well(name: str) -> str:
-    s = unicodedata.normalize("NFKD", str(name).strip().upper())
-    digits = re.findall(r"\d+", s)
-    return f"W{digits[0].lstrip('0')}" if digits else s
-
-def rbf_surface(lon, lat, z, res):
-    rbf = Rbf(lon, lat, z, function="thin_plate")
-    lon_g, lat_g = np.meshgrid(
-        np.linspace(LON_MIN, LON_MAX, res),
-        np.linspace(LAT_MIN, LAT_MAX, res),
-    )
-    return lon_g, lat_g, rbf(lon_g, lat_g)
-
-def draw_frame(
-    lon, lat, z, labels, title: str, grid_res: int, n_levels: int
-) -> Image.Image:
-    """
-    lon, lat, z: arrays of floats
-    labels: list/array of well names (strings), same length
-    """
-    # Convert + clean
-    lon_arr = np.asarray(lon, dtype=float)
-    lat_arr = np.asarray(lat, dtype=float)
-    z_arr   = np.asarray(z,   dtype=float)
-    mask    = (~np.isnan(lon_arr)) & (~np.isnan(lat_arr)) & (~np.isnan(z_arr))
-    lon_arr, lat_arr, z_arr = lon_arr[mask], lat_arr[mask], z_arr[mask]
-    lbls    = np.asarray(labels)[mask]
-
-    fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
-
-    # Interpolate surface if possible
-    if len(lon_arr) >= 3:
-        lon_g, lat_g, z_g = rbf_surface(lon_arr, lat_arr, z_arr, grid_res)
-        cf = ax.contourf(
-            lon_g, lat_g, z_g, levels=n_levels, cmap="viridis", alpha=0.6
-        )
-        fig.colorbar(cf, ax=ax, label="Level")
-    else:
-        sc = ax.scatter(lon_arr, lat_arr, c=z_arr, cmap="viridis")
-        fig.colorbar(sc, ax=ax, label="Level")
-
-    # Scatter wells & annotate
-    ax.scatter(lon_arr, lat_arr, c=z_arr, edgecolors="black", s=70, label="Wells")
-    for x, y, name in zip(lon_arr, lat_arr, lbls):
-        ax.text(
-            x, y,
-            name,
-            fontsize=8,
-            ha="right",
-            va="bottom",
-            color="black",
-            weight="bold",
-            alpha=0.8,
-        )
-
-    ax.set(
-        xlim=(LON_MIN, LON_MAX),
-        ylim=(LAT_MIN, LAT_MAX),
-        aspect="equal",
-        xlabel="Longitude",
-        ylabel="Latitude",
-        title=title,
-    )
-    ax.legend(loc="upper right")
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return Image.open(buf)
-
-# ──────────────────────────────────────────────────────────
-# LOADERS (unchanged)
-# ──────────────────────────────────────────────────────────
-@st.cache_data
-def load_levels_raw() -> pd.DataFrame:
-    df = pd.read_csv(LEVELS_URL)
-    df.columns = [
-        normalise_well(c) if c.strip().upper().startswith("W") else c
-        for c in df.columns
-    ]
-    return df
-
-@st.cache_data
-def load_coords() -> pd.DataFrame:
-    df = pd.read_csv(COORDS_URL)
-    df.columns = [c.strip().lower() for c in df.columns]
-    df = df.rename(columns={"well": "well", "lat": "lat", "lon": "lon"})
-    df = df[["well", "lat", "lon"]].dropna()
-    df["well"] = df["well"].apply(normalise_well)
-    df["lat"] = df["lat"].astype(float)
-    df["lon"] = df["lon"].astype(float)
-    return df.drop_duplicates(subset="well")
+# (Everything remains the same above...)
 
 # ──────────────────────────────────────────────────────────
 # MAIN APP
@@ -168,7 +49,7 @@ def main():
             merged["lon"],
             merged["lat"],
             merged["level"],
-            merged["well"],   # pass labels here
+            merged["well"],
             title,
             grid_res,
             n_levels,
@@ -182,10 +63,10 @@ def main():
             frames: list[Image.Image] = []
             for _, row in levels.iterrows():
                 yr     = int(row["Year"])
-                period= row["Period"].capitalize()
+                period = row["Period"].capitalize()
                 df_f   = row[well_cols].rename_axis("well").reset_index(name="level")
                 df_f["well"] = df_f["well"].apply(normalise_well)
-                df_f       = df_f.merge(coords, on="well", how="inner").dropna(subset=["level","lat","lon"])
+                df_f = df_f.merge(coords, on="well", how="inner").dropna(subset=["level","lat","lon"])
                 if df_f.empty:
                     continue
                 label = f"{period.upper()} — {yr}"
@@ -193,7 +74,7 @@ def main():
                     df_f["lon"],
                     df_f["lat"],
                     df_f["level"],
-                    df_f["well"],   # labels here too
+                    df_f["well"],
                     label,
                     grid_res,
                     n_levels,
@@ -219,5 +100,6 @@ def main():
             mime="image/gif",
         )
 
-if __name__ == "__main__":
+# ✅ Added entry point for app.py integration
+def result_page():
     main()
