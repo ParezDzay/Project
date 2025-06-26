@@ -4,6 +4,7 @@
 # MAIN APP
 # ──────────────────────────────────────────────────────────
 def main():
+    import streamlit as st  # ✅ moved inside to ensure it's always defined
     st.set_page_config(layout="wide")
     st.title("Groundwater Dashboard")
 
