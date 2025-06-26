@@ -10,7 +10,7 @@ from processing import data_processing_page
 from home import home_page
 import hydrological
 from prediction import groundwater_prediction_page
-import result  # ✅ NEW IMPORT
+from pages import result  # ✅ UPDATED: assuming result.py is in /pages
 
 output_path = "GW data (missing filled).csv"
 
@@ -67,5 +67,5 @@ elif page == "🌊 Hydrological Analysis":
 elif page == "📊 GW Prediction":
     groundwater_prediction_page("GW_data_annual.csv")
 
-elif page == "📸 Result Visualization":  # ✅ NEW PAGE CALL
+elif page == "📸 Result Visualization":  # ✅ NEW CALL
     result.main()
