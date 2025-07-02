@@ -28,9 +28,14 @@ def groundwater_trends_page():
         "📈 ITA Plot"
     ])
 
-    def trend_label(p_value, tau):
+    # ---------------------------------------------------------------------
+    # Helper: label trend correctly for *depth-to-water* ------------------
+    #   +ve Tau / slope  → water table declining (depth grows)  ⇒ “Depleting”
+    #   –ve Tau / slope  → water table rising (depth shrinks)  ⇒ “Recovering”
+    # ---------------------------------------------------------------------
+    def trend_label(p_value, tau):                          # ⇧ CHANGED
         if p_value < 0.05:
-            return "Decreasing" if tau > 0 else "Increasing"
+            return "Depleting" if tau > 0 else "Recovering"
         else:
             return "No Trend"
 
@@ -39,17 +44,18 @@ def groundwater_trends_page():
         st.subheader("Mann-Kendall, Sen’s Slope, and Modified MK Analysis")
         annual_data = []
         for well in well_columns:
+            # annual mean depth (one value per year)
             data = df.groupby("Year")[well].mean().dropna()
             if len(data) > 10:
-                mk_result = mk.original_test(data)
+                mk_result  = mk.original_test(data)
                 mmk_result = mk.hamed_rao_modification_test(data)
-                trend = trend_label(mmk_result.p, mmk_result.Tau)
+                trend      = trend_label(mmk_result.p, mmk_result.Tau)
 
                 annual_data.append([
                     well,
-                    round(mk_result.Tau, 3), round(mk_result.z, 3), round(mk_result.p, 4),
-                    round(mk_result.slope, 3),
-                    round(mmk_result.Tau, 3), round(mmk_result.z, 3), round(mmk_result.p, 4),
+                    round(mk_result.Tau, 3),   round(mk_result.z, 3),   round(mk_result.p, 4),
+                    round(mk_result.slope, 3),                           # Sen’s slope (depth units / yr)
+                    round(mmk_result.Tau, 3),  round(mmk_result.z, 3),  round(mmk_result.p, 4),
                     trend
                 ])
 
@@ -79,7 +85,7 @@ def groundwater_trends_page():
             y_pred = slope * x + intercept
             r_squared = 1 - np.sum((y - y_pred) ** 2) / np.sum((y - np.mean(y)) ** 2)
             std_dev = np.std(y)
-            sand = 0.5 * std_dev
+            sand  = 0.5 * std_dev
             scrit = 0.95 * std_dev
 
             if abs(slope) > scrit:
@@ -89,18 +95,13 @@ def groundwater_trends_page():
             else:
                 ita_trend = "No Trend"
 
-            if slope > 0:
-                hydro_trend = "Depleting"
-            elif slope < 0:
-                hydro_trend = "Recovering"
-            else:
-                hydro_trend = "Stable"
-
+            # sign interpretation for depth-to-water ---------------------- ⇧ CHANGED
+            hydro_trend = "Depleting" if slope > 0 else ("Recovering" if slope < 0 else "Stable")
             combined_trend = f"{ita_trend} ({hydro_trend})"
 
             ita_results.append({
                 "Well": well,
-                "Slope": round(slope, 4),
+                "Slope": round(slope, 4),        # depth units / yr
                 "Mean": round(np.mean(y), 3),
                 "Std Dev": round(std_dev, 3),
                 "S": round(sand, 3),
@@ -117,13 +118,13 @@ def groundwater_trends_page():
         st.subheader("ITA Groundwater Level Comparison Per Well")
         annual_means = df.groupby("Year")[well_columns].mean().dropna()
 
-        first_years = list(range(2004, 2015))
+        first_years  = list(range(2004, 2015))
         second_years = list(range(2015, 2025))
 
         for well in well_columns:
-            first_vals = annual_means.loc[annual_means.index.isin(first_years), well].dropna()
+            first_vals  = annual_means.loc[annual_means.index.isin(first_years),  well].dropna()
             second_vals = annual_means.loc[annual_means.index.isin(second_years), well].dropna()
-            n_points = min(len(first_vals), len(second_vals))
+            n_points    = min(len(first_vals), len(second_vals))
             x = first_vals.values[:n_points]
             y = second_vals.values[:n_points]
 
@@ -132,9 +133,9 @@ def groundwater_trends_page():
                 continue
 
             X_reshape = x.reshape(-1, 1)
-            reg = LinearRegression().fit(X_reshape, y)
+            reg  = LinearRegression().fit(X_reshape, y)
             y_pred = reg.predict(X_reshape)
-            r2 = reg.score(X_reshape, y)
+            r2     = reg.score(X_reshape, y)
 
             min_val = min(np.min(x), np.min(y)) * 0.95
             max_val = max(np.max(x), np.max(y)) * 1.05
@@ -143,12 +144,12 @@ def groundwater_trends_page():
             ax.set_facecolor('#FAF3E0')
 
             for xi, yi in zip(x, y):
-                if yi < xi:
-                    ax.scatter(xi, yi, marker='v', color='green', s=80,
-                               label='Increase' if 'Increase' not in ax.get_legend_handles_labels()[1] else "")
-                else:
-                    ax.scatter(xi, yi, marker='^', color='orange', s=80,
-                               label='Decrease' if 'Decrease' not in ax.get_legend_handles_labels()[1] else "")
+                if yi > xi:   # deeper second period → decline  ----------- ⇧ CHANGED
+                    ax.scatter(xi, yi, marker='▲', color='orange', s=80,
+                               label='Depleting' if 'Depleting' not in ax.get_legend_handles_labels()[1] else "")
+                else:         # shallower second period → recovery
+                    ax.scatter(xi, yi, marker='▼', color='green', s=80,
+                               label='Recovering' if 'Recovering' not in ax.get_legend_handles_labels()[1] else "")
 
             ax.plot([min_val, max_val], [min_val, max_val], 'k--', lw=1, label='1:1 Line')
             ax.plot(x, y_pred, color='blue', lw=2, label=f'Trend (R²={r2:.3f})')
