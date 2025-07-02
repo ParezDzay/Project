@@ -30,7 +30,7 @@ def groundwater_trends_page():
 
     def trend_label(p_value, tau):
         if p_value < 0.05:
-            return "Increasing" if tau > 0 else "Decreasing"
+            return "Decreasing" if tau > 0 else "Increasing"
         else:
             return "No Trend"
 
