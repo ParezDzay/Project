@@ -87,16 +87,17 @@ def groundwater_trends_page():
             elif abs(slope) > sand:
                 ita_trend = "Possible Trend"
             else:
-                ita_trend = "No Trend"
-
+                ita_trend = ""  # <--- REMOVE "No Trend"
             if slope > 0:
                 hydro_trend = "Depleting"
             elif slope < 0:
                 hydro_trend = "Recovering"
             else:
                 hydro_trend = "Stable"
-
-            combined_trend = f"{ita_trend} ({hydro_trend})"
+            if ita_trend:
+                combined_trend = f"{ita_trend} ({hydro_trend})"
+            else:
+                combined_trend = hydro_trend
 
             ita_results.append({
                 "Well": well,
