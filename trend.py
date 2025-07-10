@@ -148,12 +148,12 @@ def groundwater_trends_page():
             ax.set_facecolor("#FAF3E0")
 
             for xi, yi in zip(x, y):
-                if yi > xi:   # depth deeper in 2015-24 → groundwater decline
-                    ax.scatter(xi, yi, marker="▲", color="orange", s=80,
-                               label="Decreasing" if "Decreasing" not in ax.get_legend_handles_labels()[1] else "")
-                else:         # shallower depth → recovery
-                    ax.scatter(xi, yi, marker="▼", color="green", s=80,
-                               label="Increasing" if "Increasing" not in ax.get_legend_handles_labels()[1] else "")
+    if yi > xi:
+        ax.scatter(xi, yi, marker="^", color="orange", s=80,
+                   label="Decreasing" if "Decreasing" not in ax.get_legend_handles_labels()[1] else "")
+    else:
+        ax.scatter(xi, yi, marker="v", color="green", s=80,
+                   label="Increasing" if "Increasing" not in ax.get_legend_handles_labels()[1] else "")
 
             ax.plot([vmin, vmax], [vmin, vmax], "k--", lw=1, label="1:1 Line")
             ax.plot(x, y_fit, color="blue", lw=2, label=f"Trend (R²={r2:.3f})")
