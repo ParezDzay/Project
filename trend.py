@@ -64,53 +64,57 @@ def groundwater_trends_page():
         trend_df = pd.DataFrame(annual_data, columns=multi_columns)
         st.dataframe(trend_df, use_container_width=True)
 
-    # === ITA Tab ===
-    with tab_ita:
-        st.subheader("ITA Analysis – Trend Metrics")
-        ita_results = []
+# === ITA Tab ===
+with tab_ita:
+    st.subheader("ITA Analysis – Trend Metrics")
+    ita_results = []
 
-        for well in well_columns:
-            series = df.groupby("Year")[well].mean().dropna()
-            if len(series) < 2:
-                continue
-            x = np.arange(len(series))
-            y = series.values
-            slope, intercept = np.polyfit(x, y, 1)
-            y_pred = slope * x + intercept
-            r_squared = 1 - np.sum((y - y_pred) ** 2) / np.sum((y - np.mean(y)) ** 2)
-            std_dev = np.std(y)
-            sand = 0.5 * std_dev
-            scrit = 0.95 * std_dev
+    for well in well_columns:
+        series = df.groupby("Year")[well].mean().dropna()
+        if len(series) < 2:
+            continue
 
-            if abs(slope) > scrit:
-                ita_trend = "Significant Trend"
-            elif abs(slope) > sand:
-                ita_trend = "Possible Trend"
-            else:
-                ita_trend = "No Trend"
+        x = np.arange(len(series))
+        y = series.values
+        slope, intercept = np.polyfit(x, y, 1)
+        y_pred = slope * x + intercept
+        r_squared = 1 - np.sum((y - y_pred) ** 2) / np.sum((y - np.mean(y)) ** 2)
+        std_dev = np.std(y)
+        sand = 0.5 * std_dev
+        scrit = 0.95 * std_dev
 
-            if slope > 0:
-                hydro_trend = "Depleting"
-            elif slope < 0:
-                hydro_trend = "Recovering"
-            else:
-                hydro_trend = "Stable"
+        if abs(slope) > scrit:
+            ita_trend = "Significant Trend"
+        elif abs(slope) > sand:
+            ita_trend = "Possible Trend"
+        else:
+            ita_trend = ""  # <-- REMOVE "No Trend"
 
+        if slope > 0:
+            hydro_trend = "Depleting"
+        elif slope < 0:
+            hydro_trend = "Recovering"
+        else:
+            hydro_trend = "Stable"
+
+        if ita_trend:
             combined_trend = f"{ita_trend} ({hydro_trend})"
+        else:
+            combined_trend = hydro_trend  # Just the hydro condition
 
-            ita_results.append({
-                "Well": well,
-                "Slope": round(slope, 4),
-                "Mean": round(np.mean(y), 3),
-                "Std Dev": round(std_dev, 3),
-                "S": round(sand, 3),
-                "Scrit": round(scrit, 3),
-                "R²": round(r_squared, 4),
-                "Trend (ITA + Hydrological)": combined_trend
-            })
+        ita_results.append({
+            "Well": well,
+            "Slope": round(slope, 4),
+            "Mean": round(np.mean(y), 3),
+            "Std Dev": round(std_dev, 3),
+            "S": round(sand, 3),
+            "Scrit": round(scrit, 3),
+            "R²": round(r_squared, 4),
+            "Trend (ITA + Hydrological)": combined_trend
+        })
 
-        ita_df = pd.DataFrame(ita_results)
-        st.dataframe(ita_df, use_container_width=True)
+    ita_df = pd.DataFrame(ita_results)
+    st.dataframe(ita_df, use_container_width=True)
 
     # === ITA Plot Tab ===
     with tab_ita_plot:
