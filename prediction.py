@@ -95,8 +95,13 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     model = st.radio("Choose Model", ["🔮 ANN", "📉 ARIMA"], horizontal=True)
 
     if model == "🔮 ANN":
+        # Initialize saved forecasts DataFrame with proper columns if not exist
         if "ann_results" not in st.session_state:
-            st.session_state.ann_results = []
+            st.session_state.ann_results = pd.DataFrame(columns=[
+                "Well", "2025", "2026", "2027", "2028", "2029",
+                "R² train", "RMSE train", "R² test", "RMSE test",
+                "lags", "layers"
+            ])
 
         well = st.sidebar.selectbox("Well", wells)
         clean = clean_series(raw, well)
@@ -169,7 +174,9 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
         st.dataframe(annual_forecast, use_container_width=True)
 
-if st.button("➕ Save This Forecast"):
+        # --------- Save & Download functionality ----------
+
+        if st.button("➕ Save This Forecast"):
             row = {
                 "Well": well,
                 "R² train": metrics["R² train"],
