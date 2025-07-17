@@ -35,7 +35,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         s = s.where(s.between(q1 - 3 * iqr, q3 + 3 * iqr)).interpolate(limit_direction="both")
         out = pd.DataFrame({
             "Date": df["Date"], well: s,
-            "Months": df["Months"]
+            "Months": df["Months"],
             "month_sin": np.sin(2 * np.pi * df["Months"] / 12),
             "month_cos": np.cos(2 * np.pi * df["Months"] / 12)
         })
