@@ -169,19 +169,36 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
         st.dataframe(annual_forecast, use_container_width=True)
 
-        if st.button("➕ Save This Forecast"):
-            forecast_entry = annual_forecast.copy()
-            forecast_entry.insert(0, "Well", well)
-            st.session_state.ann_results.append(forecast_entry)
+if st.button("➕ Save This Forecast"):
+            row = {
+                "Well": well,
+                "R² train": metrics["R² train"],
+                "RMSE train": metrics["RMSE train"],
+                "R² test": metrics["R² test"],
+                "RMSE test": metrics["RMSE test"],
+                "lags": lags,
+                "layers": ",".join(str(x) for x in layers)
+            }
+            for year in range(2025, 2030):
+                val = annual_forecast.loc[annual_forecast["Year"] == year, "Depth"]
+                row[str(year)] = val.values[0] if not val.empty else None
+
+            # Remove old entry if exists and append new one
+            st.session_state.ann_results = st.session_state.ann_results[st.session_state.ann_results["Well"] != well]
+            st.session_state.ann_results = pd.concat([st.session_state.ann_results, pd.DataFrame([row])], ignore_index=True)
+
             st.success(f"Forecast for {well} saved.")
 
-        if st.session_state.ann_results:
-            all_forecasts_df = pd.concat(st.session_state.ann_results, ignore_index=True)
-            st.markdown("### 📥 Saved Forecasts for All Wells")
-            st.dataframe(all_forecasts_df, use_container_width=True)
+        if not st.session_state.ann_results.empty:
+            st.markdown("### 📥 Saved ANN Forecasts and Metrics")
+            st.dataframe(st.session_state.ann_results, use_container_width=True)
 
-            csv = all_forecasts_df.to_csv(index=False).encode("utf-8")
-            st.download_button("📁 Download All Saved Forecasts as CSV", csv, "ANN_Forecasts.csv", "text/csv")
+            csv = st.session_state.ann_results.to_csv(index=False).encode("utf-8")
+            st.download_button("📁 Download All Saved Forecasts and Metrics as CSV", csv, "ANN_Forecasts_Metrics.csv", "text/csv")
+
+        if st.button("🗑️ Clear All Saved Forecasts"):
+            st.session_state.ann_results = st.session_state.ann_results.iloc[0:0]
+            st.success("All saved forecasts cleared.")
 
     elif model == "📉 ARIMA":
         st.subheader("📋 ARIMA Forecast — Without Meteorological Variables")
