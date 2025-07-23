@@ -35,7 +35,8 @@ def hydrological_analysis_page():
         well_columns = [col for col in df.columns if col.startswith("W")]
         selected_well = st.selectbox("Select Well for Decomposition", well_columns, index=0)
 
-        series = df[selected_well].resample("ME").mean().dropna()
+        # ✅ FIX: ensure full monthly timeline, interpolate gaps
+        series = df[selected_well].resample("M").mean().interpolate().dropna()
 
         try:
             result = seasonal_decompose(series, model='additive', period=12)
@@ -70,7 +71,9 @@ def hydrological_analysis_page():
                         if i + j >= len(well_columns):
                             break
                         well = well_columns[i + j]
-                        s = df[well].resample("ME").mean().dropna()
+
+                        # ✅ FIX: same safe interpolation
+                        s = df[well].resample("M").mean().interpolate().dropna()
                         try:
                             r = seasonal_decompose(s, model='additive', period=12)
                         except:
