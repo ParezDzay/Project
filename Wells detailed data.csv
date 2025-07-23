@@ -1,0 +1,19 @@
+﻿ID,Well Name,sub district,Basin,Depth (m),Geological Formation,GPS Coor. (UTM) X,GPS Coor. (UTM) Y,Elevation (Metrer), Coordinate X,Coordinate Y
+W1,shawais/1,kasnazan,middle,134,Recent deposit+bakhtiary,417588.4,4012224,511.48,36.25140818,44.0827037
+W2,kasnazan/10,kasnazan,middle,203,Recent deposit+bakhtiary,402125.7,4012026,376.268,36.24817997,43.9106441
+W3,daratw \18,daratu,middle,150,Recent deposit+bakhtiary,412115,3995105,414.626,36.09660858,44.02370516
+W4,khazna /1,shamamk,middle,142,Recent deposit+bakhtiary,391536.3,3997359,305.253,36.11484527,43.79483182
+W5,grda rasha \4 badel,daratu,middle,300,Recent deposit+bakhtiary,412563.4,3998605,411.433,36.12819972,44.02829707
+W6,qoritan chukul,shamamk,middle,200,Recent deposit+bakhtiary,405404.5,3993253,358.536,36.07928361,43.94939279
+W7,tandura\1,shamamk,middle,140,Recent deposit+bakhtiary,395414.4,3993027,313.046,36.07622257,43.83848911
+W8,daldaghan,shamamk,middle,197,Recent deposit+bakhtiary,399572.6,3992669,335.079,36.07343413,43.88470695
+W9,lajan,qushtapa,middle,189,Recent deposit+bakhtiary,427156.9,3990396,643.69,36.05540218,44.19122055
+W10,mastawa badel,shamamk,middle,250,Recent deposit+bakhtiary,393520.8,3989945,302.984,36.04823602,43.81787878
+W11,shekhsherwan,shamamk,middle,100,Recent deposit+bakhtiary,385320.8,3988750,298.203,36.03653264,43.72703612
+W12,perdawd badel,shamamk,middle,194,Recent deposit+bakhtiary,403053.5,3986923,341.432,36.02199155,43.92406284
+W13,grd azaban,shamamk,middle,140,Recent deposit+bakhtiary,394914,3985200,308.859,36.00561595,43.83397356
+W14,kardz (new),qushtapa,middle,117,Recent deposit+bakhtiary,419607.8,3983576,446.059,35.99332643,44.10810457
+W15,grd mala \3,qushtapa,middle,162,Recent deposit+bakhtiary,415049.6,3985171,413.524,36.0073183,44.05736939
+W16,qushtapa \12 badel,qushtapa,middle,175,Recent deposit+bakhtiary,413134.6,3981223,398.105,35.97155948,44.03655561
+W17,dugrtkan,qushtapa,middle,153,Recent deposit+bakhtiary,405005.8,3981463,344.274,35.97296525,43.94638156
+W18,qultapa yaba,qushtapa,middle,190,Recent deposit+bakhtiary,412816.2,3997954,382.097,36.12235406,44.03117825
