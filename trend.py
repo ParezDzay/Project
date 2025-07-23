@@ -163,3 +163,64 @@ def groundwater_trends_page():
             ax.set_ylim(min_val, max_val)
 
             st.pyplot(fig)
+            if figs:
+            if st.button("📥 Download ITA Plots (4 per A4, Zipped)"):
+                zip_buffer = BytesIO()
+                with ZipFile(zip_buffer, 'w') as zip_file:
+                    for i in range(0, len(figs), 4):
+                        fig, axes = plt.subplots(2, 2, figsize=(8.27, 11.69))
+                        axes = axes.flatten()
+                        for j, (well, single_fig) in enumerate(figs[i:i+4]):
+                            ax = axes[j]
+                            # recreate the same plot in the grid cell
+                            first_vals = annual_means.loc[annual_means.index.isin(first_years), well].dropna()
+                            second_vals = annual_means.loc[annual_means.index.isin(second_years), well].dropna()
+                            n_points = min(len(first_vals), len(second_vals))
+                            x = first_vals.values[:n_points]
+                            y = second_vals.values[:n_points]
+
+                            X_reshape = x.reshape(-1, 1)
+                            reg = LinearRegression().fit(X_reshape, y)
+                            y_pred = reg.predict(X_reshape)
+                            r2 = reg.score(X_reshape, y)
+
+                            min_val = min(np.min(x), np.min(y)) * 0.95
+                            max_val = max(np.max(x), np.max(y)) * 1.05
+
+                            ax.set_facecolor('#FAF3E0')
+
+                            for xi, yi in zip(x, y):
+                                if yi < xi:
+                                    ax.scatter(xi, yi, marker='v', color='green', s=50)
+                                else:
+                                    ax.scatter(xi, yi, marker='^', color='orange', s=50)
+
+                            ax.plot([min_val, max_val], [min_val, max_val], 'k--', lw=1)
+                            ax.plot(x, y_pred, color='blue', lw=1.5)
+
+                            ax.set_title(f'{well} (R²={r2:.2f})', fontsize=9)
+                            ax.set_xlim(min_val, max_val)
+                            ax.set_ylim(min_val, max_val)
+                            ax.set_xlabel('2004–2014', fontsize=8)
+                            ax.set_ylabel('2015–2024', fontsize=8)
+                            ax.tick_params(axis='both', which='major', labelsize=7)
+                            ax.grid(True, linestyle='--', alpha=0.5)
+
+                        # Remove unused axes if wells not multiple of 4
+                        for k in range(len(figs[i:i+4]), 4):
+                            fig.delaxes(axes[k])
+
+                        fig.tight_layout()
+                        buf = BytesIO()
+                        fig.savefig(buf, format='jpg', dpi=300, bbox_inches='tight')
+                        buf.seek(0)
+                        zip_file.writestr(f"ITA_Plots_{i//4 + 1}.jpg", buf.read())
+                        plt.close(fig)
+
+                zip_buffer.seek(0)
+                st.download_button(
+                    label="📄 Download Grouped ITA Plots (Zipped)",
+                    data=zip_buffer,
+                    file_name="ITA_Plots_Grouped.zip",
+                    mime="application/zip"
+                )
