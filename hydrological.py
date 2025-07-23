@@ -39,7 +39,7 @@ def hydrological_analysis_page():
         series = df[selected_well].resample("M").mean().interpolate().dropna()
 
         try:
-            result = seasonal_decompose(series, model='additive', period=12)
+            result = seasonal_decompose(series, model='additive', period=6)
         except Exception as e:
             st.error(f"Decomposition failed: {e}")
             return
