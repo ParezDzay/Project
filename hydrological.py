@@ -1,11 +1,17 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from statsmodels.tsa.seasonal import STL  # ✅ Use STL instead!
+from statsmodels.tsa.seasonal import seasonal_decompose
 import os
 from io import BytesIO
 from zipfile import ZipFile
 import matplotlib.patches as patches
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from scipy.interpolate import griddata
+import pyproj
+import contextily as ctx
+import matplotlib.colors as mcolors
 
 def hydrological_analysis_page():
     st.title("🌊 Hydrological Analysis")
@@ -26,19 +32,13 @@ def hydrological_analysis_page():
         df["Date"] = pd.to_datetime(df["Date"])
         df.set_index("Date", inplace=True)
 
-        # ✅ Limit to only W1–W18
-        well_columns = [col for col in df.columns if col.startswith("W")][:18]
-
+        well_columns = [col for col in df.columns if col.startswith("W")]
         selected_well = st.selectbox("Select Well for Decomposition", well_columns, index=0)
 
         series = df[selected_well].resample("ME").mean().dropna()
 
-        if len(series) < 12:
-            st.warning(f"Not enough data for decomposition. Need at least 12 months, found {len(series)}.")
-            return
-
         try:
-            result = STL(series, period=12).fit()
+            result = seasonal_decompose(series, model='additive', period=12)
         except Exception as e:
             st.error(f"Decomposition failed: {e}")
             return
@@ -71,10 +71,8 @@ def hydrological_analysis_page():
                             break
                         well = well_columns[i + j]
                         s = df[well].resample("ME").mean().dropna()
-                        if len(s) < 12:
-                            continue
                         try:
-                            r = STL(s, period=12).fit()
+                            r = seasonal_decompose(s, model='additive', period=12)
                         except:
                             continue
 
@@ -136,3 +134,71 @@ def hydrological_analysis_page():
                 file_name="Well_Decompositions_2WellsPerJPG.zip",
                 mime="application/zip"
             )
+
+    # === TAB 2: Heatmap ===
+    with tab2:
+        st.subheader("🌍 Groundwater Trend Heatmap (m/year)")
+        coord_path = "Wells detailed data.csv"
+        if not os.path.exists(coord_path):
+            st.error("Well coordinates file not found.")
+            return
+
+        coords_df = pd.read_csv(coord_path)
+        coords_df.columns = coords_df.columns.str.strip().str.replace('\n', ' ').str.replace('\r', '')
+        coords_df = coords_df[coords_df['Well Name'].notna()].copy()
+
+        df["Year"] = df.index.year
+        well_columns = [col for col in df.columns if col.startswith("W")]
+
+        slopes = []
+        for well in well_columns:
+            series = df.groupby("Year")[well].mean().dropna()
+            if len(series) < 2:
+                continue
+            x = series.index.values.reshape(-1, 1)
+            y = series.values
+            model = LinearRegression().fit(x, y)
+            slope = model.coef_[0]
+            slopes.append((well, slope))
+
+        trend_df = pd.DataFrame(slopes, columns=["W_Label", "Trend_m_per_year"])
+        trend_df["Well Name"] = coords_df["Well Name"].values[:len(trend_df)]
+        merged_df = pd.merge(trend_df, coords_df, on="Well Name", how="inner")
+
+        transformer = pyproj.Transformer.from_crs("epsg:32638", "epsg:3857", always_xy=True)
+        x = merged_df["GPS Coor. (UTM) X"].values
+        y = merged_df["GPS Coor. (UTM) Y"].values
+        mx, my = transformer.transform(x, y)
+
+        merged_df["X"] = mx
+        merged_df["Y"] = my
+
+        grid_x, grid_y = np.meshgrid(
+            np.linspace(min(mx), max(mx), 200),
+            np.linspace(min(my), max(my), 200)
+        )
+        grid_z = griddata((mx, my), merged_df["Trend_m_per_year"], (grid_x, grid_y), method='cubic')
+
+        bounds = [-1.0, 0.0, 0.5, 1.0, 1.5, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
+        colors = [
+            "#313695", "#74add1", "#ffffbf", "#fee090", "#fdae61",
+            "#f46d43", "#e34a33", "#d73027", "#bd0026", "#800026"
+        ]
+        cmap = mcolors.LinearSegmentedColormap.from_list("custom_map", list(zip(np.linspace(0, 1, len(colors)), colors)))
+        norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+        contour = ax.contourf(grid_x, grid_y, grid_z, levels=bounds, cmap=cmap, norm=norm, extend='both')
+
+        ax.scatter(mx, my, c='black', s=30, label="Wells")
+        for _, row in merged_df.iterrows():
+            ax.text(row["X"], row["Y"], row["W_Label"], fontsize=8, ha='center', va='bottom')
+
+        ctx.add_basemap(ax, crs="epsg:3857", source=ctx.providers.Esri.WorldImagery)
+        plt.colorbar(contour, ax=ax, orientation='vertical', label='Slope (m/year)', shrink=0.8)
+
+        ax.set_title("Groundwater Trend Heatmap (m/year)")
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        ax.legend()
+        st.pyplot(fig)
