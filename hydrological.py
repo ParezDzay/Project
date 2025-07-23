@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.seasonal import STL
 import os
 from io import BytesIO
 from zipfile import ZipFile
@@ -35,26 +35,27 @@ def hydrological_analysis_page():
         well_columns = [col for col in df.columns if col.startswith("W")]
         selected_well = st.selectbox("Select Well for Decomposition", well_columns, index=0)
 
-        # ✅ FIX: ensure full monthly timeline, interpolate gaps
-        series = df[selected_well].resample("M").mean().interpolate().dropna()
+        series = df[selected_well].resample("ME").mean().dropna()
 
         try:
-            result = seasonal_decompose(series, model='additive', period=6)
+            stl = STL(series, period=12, robust=True)
+            result = stl.fit()
         except Exception as e:
             st.error(f"Decomposition failed: {e}")
             return
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 8), sharex=True)
-        result.observed.plot(ax=ax1, color='black')
+        series.plot(ax=ax1, color='black')
         ax1.set_title(f"{selected_well} - Original")
         ax1.invert_yaxis()
         result.trend.plot(ax=ax2, color='blue')
-        ax2.set_title("Trend (Moving Average)")
+        ax2.set_title("Trend (STL)")
         ax2.invert_yaxis()
         result.seasonal.plot(ax=ax3, color='green')
-        ax3.set_title("Seasonal Pattern (Monthly)")
+        ax3.set_title("Seasonal Pattern (STL, Monthly)")
+        ax3.axhline(0, color='gray', linestyle='--')
         result.resid.plot(ax=ax4, color='red')
-        ax4.set_title("Residual (Noise/Anomalies)")
+        ax4.set_title("Residual (STL)")
         plt.tight_layout()
         st.pyplot(fig)
 
@@ -71,25 +72,24 @@ def hydrological_analysis_page():
                         if i + j >= len(well_columns):
                             break
                         well = well_columns[i + j]
-
-                        # ✅ FIX: same safe interpolation
-                        s = df[well].resample("M").mean().interpolate().dropna()
+                        s = df[well].resample("ME").mean().dropna()
                         try:
-                            r = seasonal_decompose(s, model='additive', period=6)
+                            r = STL(s, period=12, robust=True).fit()
                         except:
                             continue
 
                         o = j * 4
-                        r.observed.plot(ax=axes[o], color='black')
+                        s.plot(ax=axes[o], color='black')
                         axes[o].set_title("Original", fontsize=10)
                         axes[o].invert_yaxis()
                         r.trend.plot(ax=axes[o + 1], color='blue')
-                        axes[o + 1].set_title("Trend", fontsize=10)
+                        axes[o + 1].set_title("Trend (STL)", fontsize=10)
                         axes[o + 1].invert_yaxis()
                         r.seasonal.plot(ax=axes[o + 2], color='green')
-                        axes[o + 2].set_title("Seasonal", fontsize=10)
+                        axes[o + 2].set_title("Seasonal (STL, Monthly)", fontsize=10)
+                        axes[o + 2].axhline(0, color='gray', linestyle='--')
                         r.resid.plot(ax=axes[o + 3], color='red')
-                        axes[o + 3].set_title("Residual", fontsize=10)
+                        axes[o + 3].set_title("Residual (STL)", fontsize=10)
                         grouped_axes.append((axes[o], axes[o + 3]))
                         labels.append(well)
 
@@ -205,3 +205,4 @@ def hydrological_analysis_page():
         ax.set_ylabel("Latitude")
         ax.legend()
         st.pyplot(fig)
+
