@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.metrics import r2_score, mean_squared_error
@@ -53,74 +52,80 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         return max(0, lo - 0.2 * rng), hi + 0.2 * rng
 
     def train_ann(df_feat, well, layers, lags, scaler_type, lo, hi):
-    # Prepare data
-    X = df_feat.drop(columns=[well, "Date"])
-    y = df_feat[well]
+        # Prepare data
+        X = df_feat.drop(columns=[well, "Date"])
+        y = df_feat[well]
 
-    n = len(df_feat)
-    train_end = int(n * 0.7)
-    val_end = int(n * 0.85)
+        n = len(df_feat)
+        train_end = int(n * 0.7)
+        val_end = int(n * 0.85)
 
-    # Time-based split (no shuffle)
-    X_train, y_train = X.iloc[:train_end], y.iloc[:train_end]
-    X_val, y_val = X.iloc[train_end:val_end], y.iloc[train_end:val_end]
-    X_test, y_test = X.iloc[val_end:], y.iloc[val_end:]
+        # Time-based split (no shuffle)
+        X_train, y_train = X.iloc[:train_end], y.iloc[:train_end]
+        X_val, y_val = X.iloc[train_end:val_end], y.iloc[train_end:val_end]
+        X_test, y_test = X.iloc[val_end:], y.iloc[val_end:]
 
-    # Choose scaler
-    scaler = RobustScaler() if scaler_type == "Robust" else StandardScaler()
+        # Choose scaler
+        scaler = RobustScaler() if scaler_type == "Robust" else StandardScaler()
 
-    # Fit scaler on train, transform train/val/test
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled = scaler.transform(X_val)
-    X_test_scaled = scaler.transform(X_test)
+        # Fit scaler on train, transform train/val/test
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
 
-    # Train MLPRegressor
-    mdl = MLPRegressor(hidden_layer_sizes=layers, max_iter=2000, random_state=42, early_stopping=True, validation_fraction=len(X_val) / (len(X_train) + len(X_val)), n_iter_no_change=20)
-    # Note: sklearn early_stopping uses internal validation_fraction, so we pass val data indirectly
+        # Train MLPRegressor with early stopping, using internal validation fraction
+        mdl = MLPRegressor(
+            hidden_layer_sizes=layers,
+            max_iter=2000,
+            random_state=42,
+            early_stopping=True,
+            validation_fraction=len(X_val) / (len(X_train) + len(X_val)),
+            n_iter_no_change=20
+        )
 
-    mdl.fit(X_train_scaled, y_train)
+        mdl.fit(X_train_scaled, y_train)
 
-    # Predict
-    y_train_pred = np.clip(mdl.predict(X_train_scaled), lo, hi)
-    y_val_pred = np.clip(mdl.predict(X_val_scaled), lo, hi)
-    y_test_pred = np.clip(mdl.predict(X_test_scaled), lo, hi)
+        # Predict
+        y_train_pred = np.clip(mdl.predict(X_train_scaled), lo, hi)
+        y_val_pred = np.clip(mdl.predict(X_val_scaled), lo, hi)
+        y_test_pred = np.clip(mdl.predict(X_test_scaled), lo, hi)
 
-    # Combine train + val preds for history plot
-    y_hist_pred = np.concatenate([y_train_pred, y_val_pred, y_test_pred])
+        # Update df_feat with predictions
+        df_feat.loc[X_train.index, "pred"] = y_train_pred
+        df_feat.loc[X_val.index, "pred"] = y_val_pred
+        df_feat.loc[X_test.index, "pred"] = y_test_pred
 
-    # Update df_feat with predictions
-    df_feat.loc[X_train.index, "pred"] = y_train_pred
-    df_feat.loc[X_val.index, "pred"] = y_val_pred
-    df_feat.loc[X_test.index, "pred"] = y_test_pred
+        # Metrics on train and test (validation metrics could also be reported if needed)
+        metrics = {
+            "R² train": round(r2_score(y_train, y_train_pred), 4),
+            "RMSE train": round(np.sqrt(mean_squared_error(y_train, y_train_pred)), 4),
+            "R² test": round(r2_score(y_test, y_test_pred), 4),
+            "RMSE test": round(np.sqrt(mean_squared_error(y_test, y_test_pred)), 4),
+            "lags": lags,
+            "layers": layers
+        }
 
-    # Metrics on train and test (validation metrics could also be reported if desired)
-    from sklearn.metrics import r2_score, mean_squared_error
+        # Forecast future 5 years monthly (60 months)
+        r = df_feat.iloc[-1].copy()
+        # Use column names of X as features
+        feats = X.columns
 
-    metrics = {
-        "R² train": round(r2_score(y_train, y_train_pred), 4),
-        "RMSE train": round(np.sqrt(mean_squared_error(y_train, y_train_pred)), 4),
-        "R² test": round(r2_score(y_test, y_test_pred), 4),
-        "RMSE test": round(np.sqrt(mean_squared_error(y_test, y_test_pred)), 4),
-        "lags": lags,
-        "layers": layers
-    }
+        fut = []
+        for _ in range(HORIZON_M):
+            for k in range(lags, 1, -1):
+                r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
+            r[f"{well}_lag1"] = r["pred"]
+            nxt = r["Date"] + pd.DateOffset(months=1)
+            r.update({
+                "Date": nxt,
+                "Months": nxt.month,
+                "month_sin": np.sin(2 * np.pi * nxt.month / 12),
+                "month_cos": np.cos(2 * np.pi * nxt.month / 12)
+            })
+            val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
+            r[well] = r["pred"] = val
+            fut.append({"Date": nxt, "Depth": val})
 
-    # Forecast future 5 years monthly (60 months)
-    r = df_feat.iloc[-1].copy()
-    feats = scaler.get_feature_names_out() if hasattr(scaler, "get_feature_names_out") else X.columns
-
-    fut = []
-    for _ in range(HORIZON_M):
-        for k in range(lags, 1, -1):
-            r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
-        r[f"{well}_lag1"] = r["pred"]
-        nxt = r["Date"] + pd.DateOffset(months=1)
-        r.update({"Date": nxt, "Months": nxt.month,
-                  "month_sin": np.sin(2 * np.pi * nxt.month / 12),
-                  "month_cos": np.cos(2 * np.pi * nxt.month / 12)})
-        val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
-        r[well] = r["pred"] = val
-        fut.append({"Date": nxt, "Depth": val})
         return metrics, df_feat, pd.DataFrame(fut)
 
     raw = load_raw(data_path)
