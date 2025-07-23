@@ -75,7 +75,7 @@ def hydrological_analysis_page():
                         # ✅ FIX: same safe interpolation
                         s = df[well].resample("M").mean().interpolate().dropna()
                         try:
-                            r = seasonal_decompose(s, model='additive', period=12)
+                            r = seasonal_decompose(s, model='additive', period=6)
                         except:
                             continue
 
