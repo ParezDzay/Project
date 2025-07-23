@@ -76,7 +76,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         # Train MLPRegressor with early stopping, using internal validation fraction
         mdl = MLPRegressor(
             hidden_layer_sizes=layers,
-            max_iter=5000,
+            max_iter=2000,
             random_state=42,
             early_stopping=True,
             validation_fraction=len(X_val) / (len(X_train) + len(X_val)),
