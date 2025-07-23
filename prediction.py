@@ -58,7 +58,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
         n = len(df_feat)
         train_end = int(n * 0.75)
-        val_end = int(n * 0.70)
+        val_end = int(n * 0.90)
 
         # Time-based split (no shuffle)
         X_train, y_train = X.iloc[:train_end], y.iloc[:train_end]
