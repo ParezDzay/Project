@@ -5,6 +5,8 @@ import os
 import pymannkendall as mk
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+from io import BytesIO
+from zipfile import ZipFile
 
 def groundwater_trends_page():
     output_path = "GW data (missing filled).csv"
@@ -87,13 +89,15 @@ def groundwater_trends_page():
             elif abs(slope) > sand:
                 ita_trend = "Possible Trend"
             else:
-                ita_trend = ""  # <--- REMOVE "No Trend"
+                ita_trend = ""  # Removed "No Trend"
+
             if slope > 0:
                 hydro_trend = "Depleting"
             elif slope < 0:
                 hydro_trend = "Recovering"
             else:
                 hydro_trend = "Stable"
+
             if ita_trend:
                 combined_trend = f"{ita_trend} ({hydro_trend})"
             else:
@@ -120,6 +124,8 @@ def groundwater_trends_page():
 
         first_years = list(range(2004, 2015))
         second_years = list(range(2015, 2025))
+
+        figs = []
 
         for well in well_columns:
             first_vals = annual_means.loc[annual_means.index.isin(first_years), well].dropna()
@@ -163,16 +169,17 @@ def groundwater_trends_page():
             ax.set_ylim(min_val, max_val)
 
             st.pyplot(fig)
-            if figs:
+            figs.append((well, fig))
+
+        if figs:
             if st.button("📥 Download ITA Plots (4 per A4, Zipped)"):
                 zip_buffer = BytesIO()
                 with ZipFile(zip_buffer, 'w') as zip_file:
                     for i in range(0, len(figs), 4):
                         fig, axes = plt.subplots(2, 2, figsize=(8.27, 11.69))
                         axes = axes.flatten()
-                        for j, (well, single_fig) in enumerate(figs[i:i+4]):
+                        for j, (well, _) in enumerate(figs[i:i+4]):
                             ax = axes[j]
-                            # recreate the same plot in the grid cell
                             first_vals = annual_means.loc[annual_means.index.isin(first_years), well].dropna()
                             second_vals = annual_means.loc[annual_means.index.isin(second_years), well].dropna()
                             n_points = min(len(first_vals), len(second_vals))
@@ -206,7 +213,6 @@ def groundwater_trends_page():
                             ax.tick_params(axis='both', which='major', labelsize=7)
                             ax.grid(True, linestyle='--', alpha=0.5)
 
-                        # Remove unused axes if wells not multiple of 4
                         for k in range(len(figs[i:i+4]), 4):
                             fig.delaxes(axes[k])
 
