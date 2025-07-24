@@ -11,4 +11,3 @@ scikit-learn
 statsmodels
 pykrige
 Pillow
-tensorflow==2.12.0
