@@ -154,15 +154,38 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
     df_fit = hist[["Date", "pred"]].rename(columns={"pred": "Depth"}).assign(Type="Predicted")
 
-    plot_df = pd.concat([df_act, df_fit])
+    if future is not None:
+        df_for = future.assign(Type="Forecast")
+        plot_df = pd.concat([df_act, df_fit, df_for])
+    else:
+        plot_df = pd.concat([df_act, df_fit])
+
+    forecast_start = df_act["Date"].max()
+
     fig = px.line(
         plot_df, x="Date", y="Depth", color="Type",
         line_dash="Type",
         labels={"Depth": "Water-table depth (m)", "Date": "Date", "Type": "Legend"},
-        title=f"{well} — Fit",
+        title=f"{well} — Fit & Forecast",
         render_mode="svg",
         line_shape="spline"
     )
     fig.update_yaxes(autorange="reversed")
+
+    # ➕ ADDED: Forecast plot styling
+    if future is not None:
+        fig.update_traces(selector=dict(name="Forecast"), line=dict(dash="dash", width=2), opacity=0.7)
+        fig.add_shape(type="line", x0=forecast_start, x1=forecast_start, y0=0, y1=1, xref="x", yref="paper",
+                      line=dict(color="gray", dash="dot"))
+        fig.add_annotation(x=forecast_start, y=1, yref="paper", showarrow=False, text="Forecast Start",
+                           bgcolor="white", font=dict(color="gray"))
+
     st.plotly_chart(fig, use_container_width=True)
 
+    # ➕ ADDED: Forecast table for MLP only
+    if future is not None:
+        st.subheader("🗒️ 5-Year Forecast Table (Annual Average)")
+        future["Year"] = future["Date"].dt.year
+        annual_forecast = future.groupby("Year")["Depth"].mean().reset_index()
+        annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
+        st.dataframe(annual_forecast, use_container_width=True)
