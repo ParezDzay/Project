@@ -129,7 +129,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         return
 
     wells = [c for c in raw.columns if c.startswith("W")]
-    model = st.radio("Choose Model", ["\ud83d\udd2e MLP", "\ud83e\uddae LSTM"], horizontal=True)
+    model = st.radio("Choose Model", ["🔮 MLP", "🧮 LSTM"], horizontal=True)
 
     well = st.sidebar.selectbox("Well", wells)
     clean = clean_series(raw, well)
