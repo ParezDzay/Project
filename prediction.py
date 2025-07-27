@@ -12,7 +12,7 @@ import plotly.express as px
 
 
 def groundwater_prediction_page(data_path="GW_data_annual.csv"):
-    st.title("\ud83d\udcca Groundwater Forecasting")
+    st.title("📊  Groundwater Forecasting")
 
     HORIZON_M = 60  # 5 years
 
