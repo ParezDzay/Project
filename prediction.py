@@ -1,3 +1,6 @@
+ANN Stream lit
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,7 +15,7 @@ import plotly.express as px
 
 
 def groundwater_prediction_page(data_path="GW_data_annual.csv"):
-    st.title("📊  Groundwater Forecasting")
+    st.title("📊 Groundwater Forecasting")
 
     HORIZON_M = 60  # 5 years
 
@@ -129,7 +132,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         return
 
     wells = [c for c in raw.columns if c.startswith("W")]
-    model = st.radio("Choose Model", ["🔮 MLP", "🧮 LSTM"], horizontal=True)
+    model = st.radio("Choose Model", ["🔮 MLP", "🧬 LSTM"], horizontal=True)
 
     well = st.sidebar.selectbox("Well", wells)
     clean = clean_series(raw, well)
@@ -142,13 +145,13 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     scaler_choice = st.sidebar.selectbox("Scaler", ["Standard", "Robust"])
     feat = add_lags(clean, well, lags)
 
-    if model == "\ud83d\udd2e MLP":
+    if model == "🔮 MLP":
         metrics, hist, future = train_mlp(feat, well, layers, lags, scaler_choice, lo, hi)
     else:
         metrics, hist = train_lstm(feat, well, layers, lags, scaler_choice, lo, hi)
         future = None
 
-    st.subheader(f"\ud83d\udd0d {model} Model Metrics")
+    st.subheader(f"🔍 {model} Model Metrics")
     st.json(metrics)
 
     df_act = pd.DataFrame({"Date": clean["Date"], "Depth": clean[well], "Type": "Actual"})
@@ -172,6 +175,7 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
     )
     fig.update_yaxes(autorange="reversed")
 
+    # ➕ ADDED: Forecast plot styling
     if future is not None:
         fig.update_traces(selector=dict(name="Forecast"), line=dict(dash="dash", width=2), opacity=0.7)
         fig.add_shape(type="line", x0=forecast_start, x1=forecast_start, y0=0, y1=1, xref="x", yref="paper",
@@ -181,9 +185,10 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # ➕ ADDED: Forecast table for MLP only
     if future is not None:
-        st.subheader("\ud83d\uddd2\ufe0f 5-Year Forecast Table (Annual Average)")
+        st.subheader("🗒️ 5-Year Forecast Table (Annual Average)")
         future["Year"] = future["Date"].dt.year
         annual_forecast = future.groupby("Year")["Depth"].mean().reset_index()
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
-        st.dataframe(annual_forecast, use_container_width=True)
+        st.dataframe(annual_forecast, use_container_width
