@@ -1,6 +1,3 @@
-ANN Stream lit
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -11,7 +8,6 @@ from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.metrics import r2_score, mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-from sklearn.model_selection import KFold
 import plotly.express as px
 
 
@@ -57,71 +53,42 @@ def groundwater_prediction_page(data_path="GW_data_annual.csv"):
         rng = hi - lo if hi > lo else max(hi, 1)
         return max(0, lo - 0.2 * rng), hi + 0.2 * rng
 
-from sklearn.model_selection import KFold
-
-def train_mlp(df_feat, well, layers, lags, scaler_type, lo, hi, n_splits=5):
-    X = df_feat.drop(columns=[well, "Date"])
-    y = df_feat[well]
-    
-    scaler = RobustScaler() if scaler_type == "Robust" else StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    kf = KFold(n_splits=n_splits, shuffle=False)  # No shuffle to keep time order
-    
-    metrics_list = []
-    preds = pd.Series(index=df_feat.index, dtype=float)
-    
-    for train_index, test_index in kf.split(X_scaled):
-        Xtr, Xte = X_scaled[train_index], X_scaled[test_index]
-        ytr, yte = y.iloc[train_index], y.iloc[test_index]
-        
+    def train_mlp(df_feat, well, layers, lags, scaler_type, lo, hi):
+        X = df_feat.drop(columns=[well, "Date"])
+        y = df_feat[well]
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, shuffle=False)
+        scaler = RobustScaler() if scaler_type == "Robust" else StandardScaler()
         mdl = MLPRegressor(hidden_layer_sizes=layers, max_iter=2000, random_state=42, early_stopping=True)
-        mdl.fit(Xtr, ytr)
-        
-        ytr_pred = np.clip(mdl.predict(Xtr), lo, hi)
-        yte_pred = np.clip(mdl.predict(Xte), lo, hi)
-        
-        # Save predictions for the test fold only
-        preds.iloc[test_index] = yte_pred
-        
-        fold_metrics = {
-            "R² train": r2_score(ytr, ytr_pred),
-            "RMSE train": np.sqrt(mean_squared_error(ytr, ytr_pred)),
-            "R² test": r2_score(yte, yte_pred),
-            "RMSE test": np.sqrt(mean_squared_error(yte, yte_pred))
+        mdl.fit(scaler.fit_transform(Xtr), ytr)
+        ytr_pred = np.clip(mdl.predict(scaler.transform(Xtr)), lo, hi)
+        yte_pred = np.clip(mdl.predict(scaler.transform(Xte)), lo, hi)
+        df_feat.loc[Xtr.index, "pred"] = ytr_pred
+        df_feat.loc[Xte.index, "pred"] = yte_pred
+
+        metrics = {
+            "R² train": round(r2_score(ytr, ytr_pred), 4),
+            "RMSE train": round(np.sqrt(mean_squared_error(ytr, ytr_pred)), 4),
+            "R² test": round(r2_score(yte, yte_pred), 4),
+            "RMSE test": round(np.sqrt(mean_squared_error(yte, yte_pred)), 4)
         }
-        metrics_list.append(fold_metrics)
-    
-    # Average metrics over folds
-    avg_metrics = {
-        "R² train": round(np.mean([m["R² train"] for m in metrics_list]), 4),
-        "RMSE train": round(np.mean([m["RMSE train"] for m in metrics_list]), 4),
-        "R² test": round(np.mean([m["R² test"] for m in metrics_list]), 4),
-        "RMSE test": round(np.mean([m["RMSE test"] for m in metrics_list]), 4),
-    }
-    
-    # Assign predictions to df_feat
-    df_feat["pred"] = preds
-    
-    # Now do forecasting as before, using last row of df_feat with predictions
-    feats = scaler.feature_names_in_
-    r = df_feat.tail(1).iloc[0].copy()
-    fut = []
-    for _ in range(HORIZON_M):
-        for k in range(lags, 1, -1):
-            r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
-        r[f"{well}_lag1"] = r["pred"]
-        nxt = r["Date"] + pd.DateOffset(months=1)
-        r.update({
-            "Date": nxt, "Months": nxt.month,
-            "month_sin": np.sin(2 * np.pi * nxt.month / 12),
-            "month_cos": np.cos(2 * np.pi * nxt.month / 12)
-        })
-        val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
-        r[well] = r["pred"] = val
-        fut.append({"Date": nxt, "Depth": val})
-        
-    return avg_metrics, df_feat, pd.DataFrame(fut)
+
+        feats = scaler.feature_names_in_
+        r = df_feat.tail(1).iloc[0].copy()
+        fut = []
+        for _ in range(HORIZON_M):
+            for k in range(lags, 1, -1):
+                r[f"{well}_lag{k}"] = r[f"{well}_lag{k - 1}"]
+            r[f"{well}_lag1"] = r["pred"]
+            nxt = r["Date"] + pd.DateOffset(months=1)
+            r.update({
+                "Date": nxt, "Months": nxt.month,
+                "month_sin": np.sin(2 * np.pi * nxt.month / 12),
+                "month_cos": np.cos(2 * np.pi * nxt.month / 12)
+            })
+            val = np.clip(mdl.predict(scaler.transform(r[feats].to_frame().T))[0], lo, hi)
+            r[well] = r["pred"] = val
+            fut.append({"Date": nxt, "Depth": val})
+        return metrics, df_feat, pd.DataFrame(fut)
 
     def train_lstm(df_feat, well, layers, lags, scaler_type, lo, hi):
         X = df_feat.drop(columns=[well, "Date"])
@@ -221,4 +188,4 @@ def train_mlp(df_feat, well, layers, lags, scaler_type, lo, hi, n_splits=5):
         future["Year"] = future["Date"].dt.year
         annual_forecast = future.groupby("Year")["Depth"].mean().reset_index()
         annual_forecast["Depth"] = annual_forecast["Depth"].round(2)
-        st.dataframe(annual_forecast, use_container_width
+        st.dataframe(annual_forecast, use_container_width=True)
