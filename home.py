@@ -54,7 +54,7 @@ def home_page():
         **Features**: This application is developed to support the research work of a Master's thesis project.  
         - Explore 20 well data  
         - Visualize well locations on a map  
-        - Groundwater analysis for 20 wells in the Central Sub-Basin (CSB) of Erbil City  
+        - Groundwater analysis for 17 wells in the Central Sub-Basin (CSB) of Erbil City  
     """)
 
     st.markdown('<div class="footer">Created by Parez Dizayee</div>', unsafe_allow_html=True)
