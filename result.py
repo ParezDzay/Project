@@ -154,7 +154,7 @@ def result_page():
                 st.error("No frames generated.")
                 return
             buf = io.BytesIO()
-            frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=1200, loop=0)
+            frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=900, loop=0)
             buf.seek(0)
         st.subheader("Time-series animation")
         st.image(buf.getvalue())
