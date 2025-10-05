@@ -72,16 +72,33 @@ def apply_knn_imputer(df_in, well_cols):
 
 # --- Baseline model ---
 def baseline_model(X_train, y_train, X_test, y_test):
+    y_train = np.array(y_train).flatten()
+    y_test = np.array(y_test).flatten()
+
+    mask_train = ~np.isnan(y_train)
+    mask_test = ~np.isnan(y_test)
+
+    if mask_train.sum() == 0 or mask_test.sum() == 0:
+        return np.nan, np.nan
+
     model = LinearRegression()
-    model.fit(X_train, y_train)
+    model.fit(X_train[mask_train], y_train[mask_train])
     y_pred = model.predict(X_test)
-    r2 = r2_score(y_test, y_pred)
-    rmse = mean_squared_error(y_test, y_pred, squared=False)
+
+    y_pred = np.array(y_pred).flatten()
+    mask_final = ~np.isnan(y_test) & ~np.isnan(y_pred)
+
+    if mask_final.sum() == 0:
+        return np.nan, np.nan
+
+    r2 = r2_score(y_test[mask_final], y_pred[mask_final])
+    rmse = mean_squared_error(y_test[mask_final], y_pred[mask_final], squared=False)
+
     return r2, rmse
 
 # --- Streamlit app ---
 def data_processing_page():
-    st.title("Groundwater Data Processing")
+    st.title("Groundwater Data Processing — Imputation Method Decision")
 
     if not os.path.exists(data_path):
         st.error("Groundwater data file not found.")
@@ -98,12 +115,8 @@ def data_processing_page():
 
     well_cols = [col for col in df.columns if col not in ["Year", "Months", "Date"]]
 
-    tab1, tab2 = st.tabs([
-        "📌 Imputation Method Decision",
-        "📊 Model Sensitivity Analysis"
-    ])
+    tab1 = st.tabs(["📌 Imputation Method Decision"])[0]
 
-    # --- Tab 1: Decision ---
     with tab1:
         st.header("Step 1: Decide the Best Imputation Method")
 
@@ -160,12 +173,6 @@ def data_processing_page():
         )
 
         st.write("✅ Choose the imputation method with the **lowest Average RMSE**, **highest Average R²**, and **lowest outlier %**.")
-
-    # --- Tab 2: Sensitivity Analysis (Stage 2) ---
-    with tab2:
-        st.header("Step 2: ANN/LSTM/SARIMA Sensitivity Analysis")
-        st.info("Run this after deciding on the imputation method from Tab 1.")
-        st.write("This tab will be implemented next after method decision.")
 
 # Run app
 if __name__ == "__main__":
