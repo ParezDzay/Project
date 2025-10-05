@@ -7,25 +7,12 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from io import BytesIO
 from zipfile import ZipFile
-
-def sen_slope_ci(x, alpha=0.05):
-    """Calculate Sen's slope and 95% CI using bootstrapping."""
-    slopes = []
-    n = len(x)
-    for i in range(n - 1):
-        for j in range(i + 1, n):
-            slopes.append((x[j] - x[i]) / (j - i))
-    slopes = np.array(slopes)
-    slopes.sort()
-    lower = np.percentile(slopes, 100 * (alpha / 2))
-    upper = np.percentile(slopes, 100 * (1 - alpha / 2))
-    slope = np.median(slopes)
-    return slope, lower, upper
+from statsmodels.stats.multitest import multipletests  # <-- For BH correction
 
 def groundwater_trends_page():
     output_path = "GW data (missing filled).csv"
 
-    st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK)")
+    st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK, BH Correction)")
 
     if not os.path.exists(output_path):
         st.error("Processed groundwater data not found.")
@@ -54,13 +41,7 @@ def groundwater_trends_page():
     with tab_mk:
         st.subheader("Mann-Kendall, Sen’s Slope, and Modified MK Analysis")
         annual_data = []
-        multi_columns = pd.MultiIndex.from_tuples([
-            ('Well', ''),
-            ('MK', 'Tau'), ('MK', 'Z-Statistic'), ('MK', 'P-Value'),
-            ('Sen’s Slope', 'Slope'), ('Sen’s Slope', '95% CI'),
-            ('MMK', 'Tau'), ('MMK', 'Z-Statistic'), ('MMK', 'P-Value'),
-            ('MMK', 'Trend')
-        ])
+        raw_p_values = []  # <-- Store raw p-values for BH correction
 
         for well in well_columns:
             data = df.groupby("Year")[well].mean().dropna()
@@ -69,20 +50,42 @@ def groundwater_trends_page():
                 mmk_result = mk.hamed_rao_modification_test(data)
                 trend = trend_label(mmk_result.p, mmk_result.Tau)
 
-                slope, lower_ci, upper_ci = sen_slope_ci(data.values)
-
                 annual_data.append([
                     well,
                     round(mk_result.Tau, 3),
                     round(mk_result.z, 3),
                     round(mk_result.p, 4),
-                    round(slope, 3),
-                    f"({round(lower_ci, 3)}, {round(upper_ci, 3)})",
+                    round(mk_result.slope, 3),
                     round(mmk_result.Tau, 3),
                     round(mmk_result.z, 3),
                     round(mmk_result.p, 4),
                     trend
                 ])
+                raw_p_values.append(mmk_result.p)  # Store MMK p-value for BH
+
+        # Apply Benjamini–Hochberg correction
+        if raw_p_values:
+            bh_results = multipletests(raw_p_values, alpha=0.05, method='fdr_bh')
+            bh_p_values = bh_results[1]  # Adjusted p-values
+        else:
+            bh_p_values = []
+
+        # Add BH-adjusted p-values to the table
+        for i, bh_p in enumerate(bh_p_values):
+            annual_data[i].insert(4, round(bh_p, 4))  # Insert BH p-value after MK p-value
+
+        multi_columns = pd.MultiIndex.from_tuples([
+            ('Well', ''),
+            ('MK', 'Tau'),
+            ('MK', 'Z-Statistic'),
+            ('MK', 'P-Value'),
+            ('MK', 'BH P-Value'),  # <-- Added column
+            ('Sen’s Slope', 'Slope'),
+            ('MMK', 'Tau'),
+            ('MMK', 'Z-Statistic'),
+            ('MMK', 'P-Value'),
+            ('MMK', 'Trend')
+        ])
 
         trend_df = pd.DataFrame(annual_data, columns=multi_columns)
         st.dataframe(trend_df, use_container_width=True)
@@ -110,7 +113,7 @@ def groundwater_trends_page():
             elif abs(slope) > sand:
                 ita_trend = "Possible Trend"
             else:
-                ita_trend = ""  
+                ita_trend = ""
 
             if slope > 0:
                 hydro_trend = "Depleting"
