@@ -12,13 +12,21 @@ import statsmodels.api as sm
 # File path
 data_path = "GW data.csv"
 
+# --- Metric computation ---
 def compute_metrics(y_true, y_pred):
+    y_true = np.array(y_true).flatten()
+    y_pred = np.array(y_pred).flatten()
+    mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+    y_true = y_true[mask]
+    y_pred = y_pred[mask]
+    if len(y_true) == 0:
+        return np.nan, np.nan, np.nan
     r2 = r2_score(y_true, y_pred)
     rmse = mean_squared_error(y_true, y_pred, squared=False)
     mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
     return r2, rmse, mape
 
-# --- Model functions ---
+# --- ANN ---
 def run_ann(X_train, y_train, X_test, y_test):
     model = Sequential()
     model.add(Dense(64, activation='relu', input_dim=X_train.shape[1]))
@@ -26,9 +34,10 @@ def run_ann(X_train, y_train, X_test, y_test):
     model.add(Dense(1))
     model.compile(optimizer='adam', loss='mse')
     model.fit(X_train, y_train, epochs=50, verbose=0)
-    y_pred = model.predict(X_test).flatten()
+    y_pred = model.predict(X_test, verbose=0).flatten()
     return compute_metrics(y_test, y_pred)
 
+# --- LSTM ---
 def run_lstm(X_train, y_train, X_test, y_test):
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
     X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
@@ -37,16 +46,17 @@ def run_lstm(X_train, y_train, X_test, y_test):
     model.add(Dense(1))
     model.compile(optimizer='adam', loss='mse')
     model.fit(X_train, y_train, epochs=50, verbose=0)
-    y_pred = model.predict(X_test).flatten()
+    y_pred = model.predict(X_test, verbose=0).flatten()
     return compute_metrics(y_test, y_pred)
 
+# --- SARIMA ---
 def run_sarima(y_train, y_test):
     model = sm.tsa.SARIMAX(y_train, order=(0,1,1), seasonal_order=(0,1,1,12))
     results = model.fit(disp=False)
     y_pred = results.forecast(steps=len(y_test))
     return compute_metrics(y_test, y_pred)
 
-# --- Data imputation functions ---
+# --- Outlier removal ---
 def remove_outliers(dataframe, well_cols):
     df_clean = dataframe.copy()
     for col in well_cols:
@@ -73,6 +83,7 @@ def calc_outlier_pct(df_in, well_cols):
         outlier_pct[well] = round(pct, 2)
     return pd.Series(outlier_pct)
 
+# --- Imputation ---
 def apply_linear_interpolation(df_in):
     return df_in.interpolate(method='linear', limit_direction='both')
 
@@ -105,6 +116,7 @@ def apply_knn_imputer(df_in, well_cols):
     df_knn[well_cols] = imputed_data
     return df_knn
 
+# --- Streamlit page ---
 def data_processing_page():
     st.title("Groundwater Data Processing")
 
@@ -130,7 +142,7 @@ def data_processing_page():
         "📊 Model Sensitivity Analysis"
     ])
 
-    # --- Existing Imputation Tabs ---
+    # Existing imputation tabs
     with tab1:
         st.header("Linear Interpolation")
         df_clean = remove_outliers(df, well_cols)
@@ -149,7 +161,7 @@ def data_processing_page():
         df_knn = apply_knn_imputer(df_clean, well_cols)
         st.dataframe(df_knn, use_container_width=True)
 
-    # --- New Sensitivity Analysis Tab ---
+    # Sensitivity analysis tab
     with tab_compare:
         st.header("Model Sensitivity Analysis")
 
@@ -164,7 +176,7 @@ def data_processing_page():
         for method_name, imputer_func in imputation_methods.items():
             st.write(f"Processing: {method_name}")
             df_clean = remove_outliers(df, well_cols)
-            if method_name == "Random Forest" or method_name == "KNN":
+            if method_name in ["Random Forest", "KNN"]:
                 df_imputed = imputer_func(df_clean, well_cols)
             else:
                 df_imputed = imputer_func(df_clean)
@@ -202,3 +214,7 @@ def data_processing_page():
             file_name="model_imputation_comparison.csv",
             mime="text/csv"
         )
+
+# Run the app
+if __name__ == "__main__":
+    data_processing_page()
