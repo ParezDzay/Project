@@ -247,3 +247,6 @@ def groundwater_trends_page():
                     file_name="ITA_Plots_Grouped.zip",
                     mime="application/zip"
                 )
+
+if __name__ == "__main__":
+    groundwater_trends_page()
