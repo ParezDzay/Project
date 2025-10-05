@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from io import BytesIO
 from zipfile import ZipFile
-from statsmodels.stats.multitest import multipletests  # <-- For BH correction
+from statsmodels.stats.multitest import multipletests  # For BH correction
 
 def groundwater_trends_page():
     output_path = "GW data (missing filled).csv"
 
-    st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK, BH Correction)")
+    st.title("📉 Groundwater Trends for Wells (MK, Sen’s Slope, MMK)")
 
     if not os.path.exists(output_path):
         st.error("Processed groundwater data not found.")
@@ -41,7 +41,7 @@ def groundwater_trends_page():
     with tab_mk:
         st.subheader("Mann-Kendall, Sen’s Slope, and Modified MK Analysis")
         annual_data = []
-        raw_p_values = []  # <-- Store raw p-values for BH correction
+        raw_p_values = []
 
         for well in well_columns:
             data = df.groupby("Year")[well].mean().dropna()
@@ -61,7 +61,7 @@ def groundwater_trends_page():
                     round(mmk_result.p, 4),
                     trend
                 ])
-                raw_p_values.append(mmk_result.p)  # Store MMK p-value for BH
+                raw_p_values.append(mmk_result.p)
 
         # Apply Benjamini–Hochberg correction
         if raw_p_values:
@@ -70,17 +70,19 @@ def groundwater_trends_page():
         else:
             bh_p_values = []
 
-        # Add BH-adjusted p-values to the table
+        # Insert BH P-Value and 95% CI significance columns
         for i, bh_p in enumerate(bh_p_values):
-            annual_data[i].insert(4, round(bh_p, 4))  # Insert BH p-value after MK p-value
+            annual_data[i].insert(4, round(bh_p, 4))  # BH P-Value
+            annual_data[i].insert(5, "Yes" if bh_p < 0.05 else "No")  # 95% CI
 
         multi_columns = pd.MultiIndex.from_tuples([
             ('Well', ''),
             ('MK', 'Tau'),
             ('MK', 'Z-Statistic'),
             ('MK', 'P-Value'),
-            ('MK', 'BH P-Value'),  # <-- Added column
+            ('MK', 'BH P-Value'),
             ('Sen’s Slope', 'Slope'),
+            ('Sen’s Slope', '95% CI'),
             ('MMK', 'Tau'),
             ('MMK', 'Z-Statistic'),
             ('MMK', 'P-Value'),
@@ -113,7 +115,7 @@ def groundwater_trends_page():
             elif abs(slope) > sand:
                 ita_trend = "Possible Trend"
             else:
-                ita_trend = ""
+                ita_trend = ""  # Removed "No Trend"
 
             if slope > 0:
                 hydro_trend = "Depleting"
@@ -254,3 +256,4 @@ def groundwater_trends_page():
                     file_name="ITA_Plots_Grouped.zip",
                     mime="application/zip"
                 )
+
