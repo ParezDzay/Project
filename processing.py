@@ -4,57 +4,11 @@ import numpy as np
 import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM
-import statsmodels.api as sm
 
 # File path
 data_path = "GW data.csv"
-
-# --- Metric computation ---
-def compute_metrics(y_true, y_pred):
-    y_true = np.array(y_true).flatten()
-    y_pred = np.array(y_pred).flatten()
-    mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-    y_true = y_true[mask]
-    y_pred = y_pred[mask]
-    if len(y_true) == 0:
-        return np.nan, np.nan, np.nan
-    r2 = r2_score(y_true, y_pred)
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
-    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
-    return r2, rmse, mape
-
-# --- ANN ---
-def run_ann(X_train, y_train, X_test, y_test):
-    model = Sequential()
-    model.add(Dense(64, activation='relu', input_dim=X_train.shape[1]))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X_train, y_train, epochs=50, verbose=0)
-    y_pred = model.predict(X_test, verbose=0).flatten()
-    return compute_metrics(y_test, y_pred)
-
-# --- LSTM ---
-def run_lstm(X_train, y_train, X_test, y_test):
-    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
-    X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
-    model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(X_train.shape[1], 1)))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X_train, y_train, epochs=50, verbose=0)
-    y_pred = model.predict(X_test, verbose=0).flatten()
-    return compute_metrics(y_test, y_pred)
-
-# --- SARIMA ---
-def run_sarima(y_train, y_test):
-    model = sm.tsa.SARIMAX(y_train, order=(0,1,1), seasonal_order=(0,1,1,12))
-    results = model.fit(disp=False)
-    y_pred = results.forecast(steps=len(y_test))
-    return compute_metrics(y_test, y_pred)
 
 # --- Outlier removal ---
 def remove_outliers(dataframe, well_cols):
@@ -116,7 +70,16 @@ def apply_knn_imputer(df_in, well_cols):
     df_knn[well_cols] = imputed_data
     return df_knn
 
-# --- Streamlit page ---
+# --- Baseline model ---
+def baseline_model(X_train, y_train, X_test, y_test):
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    r2 = r2_score(y_test, y_pred)
+    rmse = mean_squared_error(y_test, y_pred, squared=False)
+    return r2, rmse
+
+# --- Streamlit app ---
 def data_processing_page():
     st.title("Groundwater Data Processing")
 
@@ -135,35 +98,14 @@ def data_processing_page():
 
     well_cols = [col for col in df.columns if col not in ["Year", "Months", "Date"]]
 
-    tab1, tab2, tab3, tab_compare = st.tabs([
-        "1️⃣ Linear Interpolation",
-        "2️⃣ Random Forest",
-        "3️⃣ KNN Imputation",
+    tab1, tab2 = st.tabs([
+        "📌 Imputation Method Decision",
         "📊 Model Sensitivity Analysis"
     ])
 
-    # Existing imputation tabs
+    # --- Tab 1: Decision ---
     with tab1:
-        st.header("Linear Interpolation")
-        df_clean = remove_outliers(df, well_cols)
-        df_linear = apply_linear_interpolation(df_clean)
-        st.dataframe(df_linear, use_container_width=True)
-
-    with tab2:
-        st.header("Random Forest Imputation")
-        df_clean = remove_outliers(df, well_cols)
-        df_rf = apply_rf_imputer(df_clean, well_cols)
-        st.dataframe(df_rf, use_container_width=True)
-
-    with tab3:
-        st.header("KNN Imputation")
-        df_clean = remove_outliers(df, well_cols)
-        df_knn = apply_knn_imputer(df_clean, well_cols)
-        st.dataframe(df_knn, use_container_width=True)
-
-    # Sensitivity analysis tab
-    with tab_compare:
-        st.header("Model Sensitivity Analysis")
+        st.header("Step 1: Decide the Best Imputation Method")
 
         imputation_methods = {
             "Linear Interpolation": apply_linear_interpolation,
@@ -171,7 +113,7 @@ def data_processing_page():
             "KNN": apply_knn_imputer
         }
 
-        results = []
+        decision_results = []
 
         for method_name, imputer_func in imputation_methods.items():
             st.write(f"Processing: {method_name}")
@@ -181,6 +123,10 @@ def data_processing_page():
             else:
                 df_imputed = imputer_func(df_clean)
 
+            outlier_pct = calc_outlier_pct(df_imputed, well_cols).mean()
+
+            r2_list = []
+            rmse_list = []
             for well in well_cols:
                 y = df_imputed[well].values
                 X = np.arange(len(y)).reshape(-1, 1)
@@ -189,32 +135,38 @@ def data_processing_page():
                 X_train, X_test = X[:split_idx], X[split_idx:]
                 y_train, y_test = y[:split_idx], y[split_idx:]
 
-                ann_r2, ann_rmse, ann_mape = run_ann(X_train, y_train, X_test, y_test)
-                lstm_r2, lstm_rmse, lstm_mape = run_lstm(X_train, y_train, X_test, y_test)
-                sarima_r2, sarima_rmse, sarima_mape = run_sarima(y_train, y_test)
+                r2, rmse = baseline_model(X_train, y_train, X_test, y_test)
+                r2_list.append(r2)
+                rmse_list.append(rmse)
 
-                results.append({
-                    "Model": "ANN", "Imputation Method": method_name, "Well": well,
-                    "R²": ann_r2, "RMSE": ann_rmse, "MAPE (%)": ann_mape
-                })
-                results.append({
-                    "Model": "LSTM", "Imputation Method": method_name, "Well": well,
-                    "R²": lstm_r2, "RMSE": lstm_rmse, "MAPE (%)": lstm_mape
-                })
-                results.append({
-                    "Model": "SARIMA", "Imputation Method": method_name, "Well": well,
-                    "R²": sarima_r2, "RMSE": sarima_rmse, "MAPE (%)": sarima_mape
-                })
+            avg_r2 = np.nanmean(r2_list)
+            avg_rmse = np.nanmean(rmse_list)
 
-        results_df = pd.DataFrame(results)
-        st.dataframe(results_df, use_container_width=True)
+            decision_results.append({
+                "Imputation Method": method_name,
+                "Average R²": avg_r2,
+                "Average RMSE": avg_rmse,
+                "Average Outlier %": outlier_pct
+            })
+
+        decision_df = pd.DataFrame(decision_results).sort_values(by="Average RMSE")
+        st.dataframe(decision_df, use_container_width=True)
+
         st.download_button(
-            label="Download Sensitivity Analysis Table",
-            data=results_df.to_csv(index=False).encode('utf-8'),
-            file_name="model_imputation_comparison.csv",
+            label="Download Imputation Decision Table",
+            data=decision_df.to_csv(index=False).encode('utf-8'),
+            file_name="imputation_decision.csv",
             mime="text/csv"
         )
 
-# Run the app
+        st.write("✅ Choose the imputation method with the **lowest Average RMSE**, **highest Average R²**, and **lowest outlier %**.")
+
+    # --- Tab 2: Sensitivity Analysis (Stage 2) ---
+    with tab2:
+        st.header("Step 2: ANN/LSTM/SARIMA Sensitivity Analysis")
+        st.info("Run this after deciding on the imputation method from Tab 1.")
+        st.write("This tab will be implemented next after method decision.")
+
+# Run app
 if __name__ == "__main__":
     data_processing_page()
