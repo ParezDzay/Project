@@ -148,7 +148,7 @@ def data_processing_page():
                 X_train, X_test = X[:split_idx], X[split_idx:]
                 y_train, y_test = y[:split_idx], y[split_idx:]
 
-                r2, rmse = baseline_model(X_train, y_train, X_test, y_test)
+                r2, rmse = baseline_model(X, y)
                 r2_list.append(r2)
                 rmse_list.append(rmse)
 
