@@ -147,6 +147,12 @@ def data_processing_page():
                 split_idx = int(len(y) * 0.8)
                 X_train, X_test = X[:split_idx], X[split_idx:]
                 y_train, y_test = y[:split_idx], y[split_idx:]
+                
+                if np.isnan(y).all() or len(y) < 10:
+                    r2_list.append(np.nan)
+                    rmse_list.append(np.nan)
+                    continue
+
 
                 r2, rmse = baseline_model(np.arange(len(y)), y)
                 r2_list.append(r2)
