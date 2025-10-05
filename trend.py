@@ -23,7 +23,6 @@ def groundwater_trends_page():
 
     well_columns = [col for col in df.columns if col.startswith('W')]
 
-    # Tabs
     tab_mk, tab_ita, tab_ita_plot = st.tabs([
         "📊 MK, Sen’s Slope & MMK",
         "💡 ITA Analysis",
@@ -36,10 +35,24 @@ def groundwater_trends_page():
         else:
             return "No Trend"
 
+    def sen_slope_ci(series, alpha=0.05):
+        n = len(series)
+        slopes = []
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                slopes.append((series[j] - series[i]) / (j - i))
+        slopes.sort()
+        slope = np.median(slopes)
+        k = int(alpha / 2 * len(slopes))
+        lower = slopes[k]
+        upper = slopes[-k - 1]
+        return slope, lower, upper
+
     # === MK Tab ===
     with tab_mk:
         st.subheader("Mann-Kendall, Sen’s Slope, and Modified MK Analysis")
         annual_data = []
+
         for well in well_columns:
             data = df.groupby("Year")[well].mean().dropna()
             if len(data) > 10:
@@ -47,10 +60,14 @@ def groundwater_trends_page():
                 mmk_result = mk.hamed_rao_modification_test(data)
                 trend = trend_label(mmk_result.p, mmk_result.Tau)
 
+                slope, lower_ci, upper_ci = sen_slope_ci(data.values)
+
                 annual_data.append([
                     well,
                     round(mk_result.Tau, 3), round(mk_result.z, 3), round(mk_result.p, 4),
                     round(mk_result.slope, 3),
+                    round(slope, 3),
+                    f"({round(lower_ci, 3)}, {round(upper_ci, 3)})",
                     round(mmk_result.Tau, 3), round(mmk_result.z, 3), round(mmk_result.p, 4),
                     trend
                 ])
@@ -58,7 +75,7 @@ def groundwater_trends_page():
         multi_columns = pd.MultiIndex.from_tuples([
             ('Well', ''),
             ('MK', 'Tau'), ('MK', 'Z-Statistic'), ('MK', 'P-Value'),
-            ('Sen’s Slope', 'Slope'),
+            ('Sen’s Slope', 'Slope'), ('Sen’s Slope', '95% CI'),
             ('MMK', 'Tau'), ('MMK', 'Z-Statistic'), ('MMK', 'P-Value'),
             ('MMK', 'Trend')
         ])
@@ -89,7 +106,7 @@ def groundwater_trends_page():
             elif abs(slope) > sand:
                 ita_trend = "Possible Trend"
             else:
-                ita_trend = ""  # Removed "No Trend"
+                ita_trend = ""
 
             if slope > 0:
                 hydro_trend = "Depleting"
