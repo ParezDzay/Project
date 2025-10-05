@@ -44,7 +44,10 @@ def rf_imputer(df, wells):
         rf = RandomForestRegressor(n_estimators=100, random_state=0)
         rf.fit(X, y)
         mask = df_copy[col].isnull()
-        df_copy.loc[mask, col] = rf.predict(df_copy.loc[mask, features])
+        try:
+            df_copy.loc[mask, col] = rf.predict(df_copy.loc[mask, features])
+        except:
+            continue
     return df_copy
 
 def knn_imputer(df, wells):
@@ -60,7 +63,7 @@ def baseline_model(X, y):
         y = np.array(y).flatten()
         mask = ~np.isnan(y)
         X, y = X[mask], y[mask]
-        if len(y) < 5:
+        if len(y) < 3:  # reduced threshold
             return np.nan, np.nan
         split_idx = max(int(len(y) * 0.8), 1)
         if split_idx >= len(y):
@@ -75,7 +78,7 @@ def baseline_model(X, y):
         r2 = r2_score(y_test, y_pred)
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
         return r2, rmse
-    except:
+    except Exception as e:
         return np.nan, np.nan
 
 # ====== Compare Methods ======
@@ -95,7 +98,9 @@ for method_name, func in methods.items():
     else:
         df_imputed = func(df_clean, well_cols)
 
-    outlier_pct = remove_outliers(df_imputed, well_cols)[well_cols].isna().mean().mean() * 100
+    # Calculate Outlier %
+    df_outliers_removed = remove_outliers(df_imputed, well_cols)
+    outlier_pct = df_outliers_removed[well_cols].isna().mean().mean() * 100
 
     r2_list, rmse_list = [], []
     for well in well_cols:
@@ -107,10 +112,13 @@ for method_name, func in methods.items():
         if not np.isnan(rmse):
             rmse_list.append(rmse)
 
+    avg_r2 = np.mean(r2_list) if r2_list else np.nan
+    avg_rmse = np.mean(rmse_list) if rmse_list else np.nan
+
     results.append({
         "Method": method_name,
-        "Average R²": np.mean(r2_list),
-        "Average RMSE": np.mean(rmse_list),
+        "Average R²": avg_r2,
+        "Average RMSE": avg_rmse,
         "Average Outlier %": outlier_pct
     })
 
